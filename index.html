@@ -354,9 +354,9 @@ roof2.position.set(8.1-HW,hp.y+4.3,19-HD);roof2.rotation.y=Math.PI/4;roof2.castS
 // GARAGE (attached to house, door opens FORWARD toward street/z=0)
 // Garage 6.4m x 3.6m from floor plan
 box(12.5, 12.5, 6.4, 2.8, 3.6, 0xe8e0d0);
-// Garage door (opens FORWARD toward street = -z face)
-{const gdp=wp(12.5,10.7);
-const gd=new THREE.Mesh(new THREE.BoxGeometry(4,2.2,0.08),
+// Garage door (opens from SIDE = left face, -x direction)
+{const gdp=wp(9.3,12.5);
+const gd=new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,3.2),
   new THREE.MeshLambertMaterial({color:0x777777}));
 gd.position.set(gdp.x,gdp.y+1.2,gdp.z);scene.add(gd);}
 {const roof3=new THREE.Mesh(new THREE.BoxGeometry(7,0.15,4.2),
