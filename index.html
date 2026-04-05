@@ -340,43 +340,117 @@ for(let r=0;r<2;r++) for(let c=0;c<3;c++){
 const hx=8.1, hz=15; // center of main house (3.6 + 9/2)
 const hp = wp(hx, hz);
 
-// Main section ~9x6m - RIGHT side (3.6m from right wall at x=20)
-// House right edge at x=16.4, left edge at x=7.4, center=11.9
-box(11.9, 15, 9, 3.5, 6, 0xf5f0e6);
-// Extension ~6x3.5m (bedrooms, bathroom)
-box(11.9, 19, 6, 3.5, 3.5, 0xf5f0e6);
+// KUĆA - puni footprint uklj. garažu = 12.4m
+const hLeft=4, hRight=16.4, hFront=10, hBack=20;
+const hWidth=hRight-hLeft, hDepth=hBack-hFront;
+const hCenterX=(hLeft+hRight)/2, hCenterZ=(hFront+hBack)/2;
 
-// Roofs
-const roof1=new THREE.Mesh(new THREE.ConeGeometry(6.5,2,4),new THREE.MeshLambertMaterial({color:0xb35c44}));
-roof1.position.set(11.9-HW,hp.y+4.5,15-HD);roof1.rotation.y=Math.PI/4;roof1.castShadow=true;scene.add(roof1);
-const roof2=new THREE.Mesh(new THREE.ConeGeometry(4.5,1.5,4),new THREE.MeshLambertMaterial({color:0xb35c44}));
-roof2.position.set(11.9-HW,hp.y+4.3,19-HD);roof2.rotation.y=Math.PI/4;roof2.castShadow=true;scene.add(roof2);
+// Prizemlje
+box(hCenterX, hCenterZ, hWidth, 3, hDepth, 0xf5f0e8);
+// Kat
+{const katY = elev(hCenterX,hCenterZ)+3;
+const kat=new THREE.Mesh(new THREE.BoxGeometry(hWidth,3,hDepth),
+  new THREE.MeshLambertMaterial({color:0xf8f4ee}));
+kat.position.set(hCenterX-HW,katY+1.5,hCenterZ-HD);
+kat.castShadow=true;kat.receiveShadow=true;scene.add(kat);}
 
-// GARAGE - 4m od žive ograde (x=0), garažna vrata bočno prema ogradi
-// Garage left edge at x=4, width 3.6m → center x=5.8
-box(5.8, 14, 3.6, 2.8, 6.4, 0xe8e0d0);
-// Garage door (bočna, gleda prema živoj ogradi = -x strana)
-{const gdp=wp(4.0,14);
-const gd=new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,4),
-  new THREE.MeshLambertMaterial({color:0x777777}));
-gd.position.set(gdp.x,gdp.y+1.2,gdp.z);scene.add(gd);}
-{const roof3=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.15,7),
-  new THREE.MeshLambertMaterial({color:0xa04c34}));
-roof3.position.set(5.8-HW,hp.y+3.0,14-HD);scene.add(roof3);}
+// Kosi krov (dvostrešni/gable) - prema renderu
+{const roofY=elev(hCenterX,hCenterZ)+6;
+const roofShape=new THREE.Shape();
+roofShape.moveTo(-hWidth/2-0.5, 0);
+roofShape.lineTo(0, 2.5); // vrh
+roofShape.lineTo(hWidth/2+0.5, 0);
+roofShape.lineTo(-hWidth/2-0.5, 0);
+const roofGeo=new THREE.ExtrudeGeometry(roofShape,{depth:hDepth+1,bevelEnabled:false});
+const roofMesh=new THREE.Mesh(roofGeo,new THREE.MeshLambertMaterial({color:0x8B4513}));
+roofMesh.position.set(hCenterX-HW, roofY, hCenterZ-HD-hDepth/2-0.5);
+roofMesh.castShadow=true;
+scene.add(roofMesh);}
+
+// Window material
+const winM=new THREE.MeshLambertMaterial({color:0x87ceeb,emissive:0x335577,emissiveIntensity:0.2});
+// === GARAŽA - izbočena ~3m ispred kuće (samo prizemlje) ===
+{const fY=elev(hCenterX,hFront);
+const garageProtrude=3; // koliko viri ispred kuće
+const gLeft=4, gWidth=6.4, gCx=gLeft+gWidth/2;
+
+// Garažni box (prizemlje, niži od kuće)
+const garBox=new THREE.Mesh(new THREE.BoxGeometry(gWidth,3,garageProtrude+0.5),
+  new THREE.MeshLambertMaterial({color:0xf0ece4}));
+garBox.position.set(gCx-HW,fY+1.5,hFront-HD-garageProtrude/2);
+garBox.castShadow=true;garBox.receiveShadow=true;scene.add(garBox);
+
+// Garažna vrata (prednja strana izbočenja)
+const gd=new THREE.Mesh(new THREE.BoxGeometry(4,2.3,0.1),
+  new THREE.MeshLambertMaterial({color:0x555555}));
+gd.position.set(gCx-HW,fY+1.3,hFront-HD-garageProtrude-0.05);scene.add(gd);
+
+// Ulazna vrata (centar-desno)
+const dr=new THREE.Mesh(new THREE.BoxGeometry(1,2.2,0.1),
+  new THREE.MeshLambertMaterial({color:0xf5f5f5}));
+dr.position.set(10-HW,fY+1.2,hFront-HD-0.05);scene.add(dr);
+
+// Betonski podest ispred ulaza
+const podest=new THREE.Mesh(new THREE.BoxGeometry(2.5,0.25,1.5),
+  new THREE.MeshLambertMaterial({color:0xbbbbbb}));
+podest.position.set(10-HW,fY+0.12,hFront-HD-0.8);scene.add(podest);
+
+// Prozori prizemlje (2 desno od ulaza)
+for(let i=0;i<2;i++){
+  const w=new THREE.Mesh(new THREE.BoxGeometry(1,1.2,0.1),winM);
+  w.position.set(12.5+i*2.5-HW,fY+1.5,hFront-HD-0.05);scene.add(w);
+}
+
+// BALKON iznad garaže (na vrhu garažnog izbočenja)
+const balkY=fY+3.1;
+const balkon=new THREE.Mesh(new THREE.BoxGeometry(gWidth+0.4,0.15,garageProtrude+0.5),
+  new THREE.MeshLambertMaterial({color:0xcccccc}));
+balkon.position.set(gCx-HW,balkY,hFront-HD-garageProtrude/2);scene.add(balkon);
+
+// Kovana ograda na balkonu (prednja + bočne strane)
+const ogradaMat=new THREE.MeshLambertMaterial({color:0x222222});
+// Prednja ograda
+const topRail=new THREE.Mesh(new THREE.BoxGeometry(gWidth+0.4,0.05,0.05),ogradaMat);
+topRail.position.set(gCx-HW,balkY+1,hFront-HD-garageProtrude-0.2);scene.add(topRail);
+const botRail=new THREE.Mesh(new THREE.BoxGeometry(gWidth+0.4,0.05,0.05),ogradaMat);
+botRail.position.set(gCx-HW,balkY+0.15,hFront-HD-garageProtrude-0.2);scene.add(botRail);
+// Vertikalne šipke - prednja
+for(let i=0;i<22;i++){
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.85,4),ogradaMat);
+  bar.position.set(gLeft-0.2+i*0.31-HW,balkY+0.55,hFront-HD-garageProtrude-0.2);scene.add(bar);
+}
+// Bočna ograda (lijeva strana balkona)
+const sideRailT=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,garageProtrude+0.3),ogradaMat);
+sideRailT.position.set(gLeft-0.2-HW,balkY+1,hFront-HD-garageProtrude/2);scene.add(sideRailT);
+for(let j=0;j<10;j++){
+  const sb=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.85,4),ogradaMat);
+  sb.position.set(gLeft-0.2-HW,balkY+0.55,hFront-HD-j*0.32);scene.add(sb);
+}
+
+// Prozori kat (iznad ulaza/desno)
+for(let i=0;i<3;i++){
+  const w=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.2,0.1),winM);
+  w.position.set(11+i*2-HW,balkY+1.5,hFront-HD-0.05);scene.add(w);
+}
+// Prozori kat lijevo (iznad garaže - 2 manja)
+for(let i=0;i<2;i++){
+  const w=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.9,0.1),winM);
+  w.position.set(5+i*2-HW,balkY+1.5,hFront-HD-0.05);scene.add(w);
+}
+}
 // Dimension labels on house
 // (labels added below)
 
-// Windows (front face, -z side)
-const winM=new THREE.MeshLambertMaterial({color:0x87ceeb,emissive:0x335577,emissiveIntensity:0.2});
-for(let i=-2;i<=1;i++){const w=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.06),winM);
-w.position.set(11.9+i*1.5-HW,hp.y+2.2,12.0-HD);scene.add(w);}
-{const dr=new THREE.Mesh(new THREE.BoxGeometry(0.9,2.1,0.06),
-new THREE.MeshLambertMaterial({color:0x6B4226}));
-dr.position.set(11.9-HW,hp.y+1.1,12.0-HD);scene.add(dr);}
-for(let i=-1;i<=1;i+=2){const w=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.06),winM);
-w.position.set(11.9+i*1.2-HW,hp.y+2.2,20.8-HD);scene.add(w);}
-// Terrace in front of entrance
-flat(7, 11.5, 8, 1.5, 0xd4c4a8);
+// Prozori stražnja strana
+{const bY=elev(hCenterX,hBack);
+for(let i=-2;i<=2;i+=2){
+  const w=new THREE.Mesh(new THREE.BoxGeometry(0.8,1,0.06),winM);
+  w.position.set(hCenterX+i*1.5-HW,bY+1.5,hBack-HD+0.05);scene.add(w);
+  const w2=new THREE.Mesh(new THREE.BoxGeometry(0.8,1,0.06),winM);
+  w2.position.set(hCenterX+i*1.5-HW,bY+4.5,hBack-HD+0.05);scene.add(w2);
+}}
+// Betonska terasa ispred ulaza (4m prema cesti) + ispred garaže
+flat(hCenterX, 8, hWidth, 4, 0xc8c0b0);
 // TERASA IZA KUĆE (betonska, ~15m², iz tlocrta)
 flat(10, 19.5, 8, 4, 0xc8c0b0);
 // Terrace pillars
@@ -392,16 +466,7 @@ const trp=wp(10,19.5);
 tRoof.position.set(trp.x,trp.y+2.9,trp.z);scene.add(tRoof);}
 // OSTAVA 3
 box(15, 20, 2, 2.5, 2, 0xe0d8c8);
-// Nadstrešnica nad ulaznim vratima (betonski parapet/podest)
-{const canopy=new THREE.Mesh(new THREE.BoxGeometry(2.5,0.12,1.5),
-  new THREE.MeshLambertMaterial({color:0xcccccc}));
-canopy.position.set(11.9-HW,hp.y+2.6,12.0-HD-0.7);canopy.castShadow=true;scene.add(canopy);
-// Support brackets
-for(let dx of [-0.9,0.9]){
-  const brk=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.5,0.08),
-    new THREE.MeshLambertMaterial({color:0xaaaaaa}));
-  brk.position.set(8.1+dx-HW,hp.y+2.35,12.0-HD-1.3);scene.add(brk);
-}}
+// (nadstrešnica zamijenjena balkonom u fasadi)
 
 // --- RETAINING WALLS (kameni potporni zidovi) ---
 function retWall(z, xFrom, xTo, h) {
@@ -772,7 +837,7 @@ box(kx+2, kz+1.5, 1, 1, 0.6, 0x444444); // grill
 tbl.position.set(kp.x-0.5, kp.y+0.75, kp.z); scene.add(tbl);}
 
 // --- GREENHOUSE (PLASTENIK) ---
-const gx=16, gz=34;
+const gx=12, gz=34;
 const gp = wp(gx, gz);
 flat(gx, gz, 6, 3.5, 0x8a8a7a);
 {const ghCyl = new THREE.CylinderGeometry(1.7,1.7,6,20,1,false,0,Math.PI);
@@ -863,7 +928,7 @@ for (let r=0;r<3;r++) {
 }
 
 // --- STREET WORKOUT PARK ---
-const wx=16, wz=26;
+const wx=13, wz=26;
 const wwp = wp(wx, wz);
 // Pull-up bar
 for (let dx of [-1, 1]) {
@@ -912,8 +977,8 @@ for (let side of [[1.5,0],[0,1.5],[-1.5,0],[0,-1.5]]) {
 
 // --- LABELS (Croatian) ---
 const lbls = [];
-lbls.push(label('Kuća (9×6m)', 11.9, 15, 6));
-lbls.push(label('Garaža (6.4×3.6m)', 5.8, 14, 4.5));
+lbls.push(label('Kuća', hCenterX, hCenterZ, 9));
+lbls.push(label('Garaža (6.4×3.6m)', 7.2, 10.2, 4.5));
 lbls.push(label('Terasa iza kuće', 7, 19.5, 2.5));
 lbls.push(label('← 4m →', 2, 14, 1.5));
 lbls.push(label('← 3.6m →', 18.2, 15, 1.5));
