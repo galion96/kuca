@@ -351,17 +351,17 @@ roof1.position.set(8.1-HW,hp.y+4.5,15-HD);roof1.rotation.y=Math.PI/4;roof1.castS
 const roof2=new THREE.Mesh(new THREE.ConeGeometry(4.5,1.5,4),new THREE.MeshLambertMaterial({color:0xb35c44}));
 roof2.position.set(8.1-HW,hp.y+4.3,19-HD);roof2.rotation.y=Math.PI/4;roof2.castShadow=true;scene.add(roof2);
 
-// GARAGE (attached RIGHT side, door opens to RIGHT toward x=20)
-// Garage 6.4m x 3.6m, right edge at x=16 (4m from boundary)
-box(14.2, 15, 3.6, 2.8, 6.4, 0xe8e0d0);
-// Garage door (opens RIGHT)
-{const gdp=wp(16,15);
-const gd=new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,4),
+// GARAGE (attached to house, door opens FORWARD toward street/z=0)
+// Garage 6.4m x 3.6m from floor plan
+box(12.5, 12.5, 6.4, 2.8, 3.6, 0xe8e0d0);
+// Garage door (opens FORWARD toward street = -z face)
+{const gdp=wp(12.5,10.7);
+const gd=new THREE.Mesh(new THREE.BoxGeometry(4,2.2,0.08),
   new THREE.MeshLambertMaterial({color:0x777777}));
 gd.position.set(gdp.x,gdp.y+1.2,gdp.z);scene.add(gd);}
-{const roof3=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.15,7),
+{const roof3=new THREE.Mesh(new THREE.BoxGeometry(7,0.15,4.2),
   new THREE.MeshLambertMaterial({color:0xa04c34}));
-roof3.position.set(14.2-HW,hp.y+3.0,15-HD);scene.add(roof3);}
+roof3.position.set(12.5-HW,hp.y+3.0,12.5-HD);scene.add(roof3);}
 // Dimension labels on house
 // (labels added below)
 
@@ -400,49 +400,57 @@ retWall(21, 3, 18, 1.2);
 retWall(30, 3, 18, 0.9);
 retWall(38, 3, 18, 0.8);
 
-// --- LED RASVJETA na potpornim zidovima (svako 5m) ---
-const ledMat = new THREE.MeshBasicMaterial({color:0xffffcc, emissive:0xffffaa});
-const ledGlow = new THREE.MeshBasicMaterial({color:0xffeeaa});
+// --- LED RASVJETA ---
+function addLED(x, z, baseY) {
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.15,8,6),
+    new THREE.MeshBasicMaterial({color:0xffff88}));
+  led.position.set(x-HW, baseY, z-HD);
+  scene.add(led);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.35,8,6),
+    new THREE.MeshBasicMaterial({color:0xffffaa,transparent:true,opacity:0.3}));
+  glow.position.set(x-HW, baseY, z-HD);
+  scene.add(glow);
+  const pl = new THREE.PointLight(0xffddaa, 0.4, 5);
+  pl.position.set(x-HW, baseY+0.15, z-HD);
+  scene.add(pl);
+}
+// Na potpornim zidovima
 for (const wz of [21, 30, 38]) {
   const wallH = wz===21 ? 1.2 : wz===30 ? 0.9 : 0.8;
   const yBase = elev(10, wz+0.5);
-  for (let x = 5; x <= 17; x += 5) {
-    // LED fixture
-    const led = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.08,0.15), ledMat);
-    led.position.set(x-HW, yBase+wallH*0.5, wz-HD+0.3);
-    scene.add(led);
-    // Glow sphere
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6),
-      new THREE.MeshBasicMaterial({color:0xffffdd,transparent:true,opacity:0.6}));
-    glow.position.set(x-HW, yBase+wallH*0.5, wz-HD+0.35);
-    scene.add(glow);
-    // Point light (subtle warm glow)
-    const pl = new THREE.PointLight(0xffddaa, 0.3, 3);
-    pl.position.set(x-HW, yBase+wallH*0.5+0.1, wz-HD+0.4);
-    scene.add(pl);
-  }
+  for (let x = 4; x <= 18; x += 4) addLED(x, wz, yBase+wallH+0.15);
 }
+// Na betonskim zidovima oko parcele
+// Desni zid (x=19.5)
+for (let z = 6; z < 48; z += 5) addLED(19.5, z, elev(19.5,z)+2.0);
+// Stražnji zid (z=48)
+for (let x = 3; x < 19; x += 5) addLED(x, 48, elev(x,48)+2.0);
+// Lijevi zid (x=0.5)
+for (let z = 24; z < 48; z += 5) addLED(0.5, z, elev(0.5,z)+2.0);
 
-// --- LEŽALJKE (sun loungers near pool, 3 komada) ---
-// Pool is at x=14, z=43
+// --- LEŽALJKE (sun loungers, 3 komada, PORED bazena, veće) ---
 for (let i=0; i<3; i++) {
-  const lx=14+5.5, lz=43-1.5+i*2.2;
+  const lx=14, lz=46+i*1.5; // south of pool
   const lp3=wp(lx,lz);
-  // Lounger frame
-  const frame=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.1,2),
-    new THREE.MeshLambertMaterial({color:0xf5e8c8}));
-  frame.position.set(lp3.x,lp3.y+0.3,lp3.z);scene.add(frame);
+  // Lounger base (bigger, more visible)
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(1,0.15,2.2),
+    new THREE.MeshLambertMaterial({color:0xf5e0b0}));
+  frame.position.set(lp3.x,lp3.y+0.35,lp3.z);frame.castShadow=true;scene.add(frame);
   // Legs
-  for(let dx of [-0.25,0.25]) for(let dz of [-0.7,0.7]) {
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.25,4),
-      new THREE.MeshLambertMaterial({color:0xaaaaaa}));
-    leg.position.set(lp3.x+dx,lp3.y+0.12,lp3.z+dz);scene.add(leg);
+  for(let dx of [-0.35,0.35]) for(let dz of [-0.8,0.8]) {
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.3,4),
+      new THREE.MeshLambertMaterial({color:0xcccccc}));
+    leg.position.set(lp3.x+dx,lp3.y+0.15,lp3.z+dz);scene.add(leg);
   }
-  // Back rest (raised)
-  const back=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.08,0.6),
-    new THREE.MeshLambertMaterial({color:0xf5e8c8}));
-  back.position.set(lp3.x,lp3.y+0.45,lp3.z-0.7);
-  back.rotation.x=-0.5;scene.add(back);
+  // Backrest
+  const back=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.12,0.7),
+    new THREE.MeshLambertMaterial({color:0xf5e0b0}));
+  back.position.set(lp3.x,lp3.y+0.55,lp3.z-0.75);
+  back.rotation.x=-0.5;back.castShadow=true;scene.add(back);
+  // Cushion (blue)
+  const cush=new THREE.Mesh(new THREE.BoxGeometry(0.85,0.06,1.8),
+    new THREE.MeshLambertMaterial({color:0x4488cc}));
+  cush.position.set(lp3.x,lp3.y+0.43,lp3.z);scene.add(cush);
 }
 
 // --- SJEDENJE NA TERASI ispred kuće ---
@@ -841,7 +849,7 @@ for (let side of [[1.5,0],[0,1.5],[-1.5,0],[0,-1.5]]) {
 // --- LABELS (Croatian) ---
 const lbls = [];
 lbls.push(label('Kuća (9×6m)', 8.1, 15, 6));
-lbls.push(label('Garaža (6.4×3.6m)', 14.2, 15, 4.5));
+lbls.push(label('Garaža (6.4×3.6m)', 12.5, 12.5, 4.5));
 lbls.push(label('← 3.6m →', 1.8, 15, 1.5));
 lbls.push(label('← 4m →', 18, 15, 1.5));
 lbls.push(label('Parking 6 mjesta', 15, 6, 3));
@@ -870,7 +878,7 @@ const views = {
   terase:  {pos:[0-HW, 8, 28-HD], tgt:[10-HW, 2, 30-HD]},
   bazen:   {pos:[px-HW-6, 4, pz-HD+6], tgt:[px-HW, 1, pz-HD]},
   plastenik:{pos:[gx-HW+5, 4, gz-HD-5], tgt:[gx-HW, 2, gz-HD]},
-  setnja:  {pos:[8-HW, 5.5, 11-HD], tgt:[10-HW, 1, 43-HD]},
+  setnja:  {pos:[8-HW, 5.8, 8-HD], tgt:[10-HW, 1.5, 40-HD]},
 };
 
 const viewLabels = {
