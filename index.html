@@ -837,7 +837,7 @@ box(kx+2, kz+1.5, 1, 1, 0.6, 0x444444); // grill
 tbl.position.set(kp.x-0.5, kp.y+0.75, kp.z); scene.add(tbl);}
 
 // --- GREENHOUSE (PLASTENIK) ---
-const gx=12, gz=34;
+const gx=14, gz=36;
 const gp = wp(gx, gz);
 flat(gx, gz, 6, 3.5, 0x8a8a7a);
 {const ghCyl = new THREE.CylinderGeometry(1.7,1.7,6,20,1,false,0,Math.PI);
@@ -872,13 +872,13 @@ for (let z=4;z<48;z+=2.5) {
   }
 }
 
-// --- LIVE HEDGE toward 917/3 (west, x≈2) ---
-for (let z=3;z<48;z+=1) {
-  const p=wp(2,z);
-  const bush = new THREE.Mesh(new THREE.SphereGeometry(0.5+Math.random()*0.12,8,6),
+// --- LIVE HEDGE toward 917/3 (west, x≈0.5, tanja) ---
+for (let z=3;z<48;z+=0.8) {
+  const p=wp(0.5,z);
+  const bush = new THREE.Mesh(new THREE.SphereGeometry(0.3+Math.random()*0.08,8,6),
     new THREE.MeshLambertMaterial({color:0x1a5c1a}));
-  bush.position.set(p.x, p.y+0.8, p.z);
-  bush.scale.y=2.2; bush.castShadow=true; scene.add(bush);
+  bush.position.set(p.x, p.y+0.7, p.z);
+  bush.scale.y=2.5; bush.castShadow=true; scene.add(bush);
 }
 
 // --- DECORATIVE TREES ---
@@ -890,7 +890,7 @@ tree(4, 45, 2.5, 1, 0x4aaa4a);
 tree(4, 14, 3, 1.2, 0x2d8a2d);
 tree(17, 28, 2, 0.8, 0x3a9a3a);
 // Conifers along hedge
-for (let z=4;z<46;z+=3) conifer(1.5, z, 2.5+Math.random()*0.5);
+for (let z=4;z<46;z+=3.5) conifer(0.8, z, 2.5+Math.random()*0.5);
 
 // Flowers near pool
 const fCol = [0xff6b6b,0xffd93d,0xff8fab,0xc77dff,0xff7b00,0xff69b4];
@@ -928,7 +928,7 @@ for (let r=0;r<3;r++) {
 }
 
 // --- STREET WORKOUT PARK ---
-const wx=13, wz=26;
+const wx=14, wz=28;
 const wwp = wp(wx, wz);
 // Pull-up bar
 for (let dx of [-1, 1]) {
