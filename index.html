@@ -49,6 +49,7 @@
   <button onclick="sv('setnja',event)">Šetnja</button>
   <button onclick="hiResScreenshot()" style="background:#2196F3;color:#fff">📸 HD Screenshot</button>
   <button onclick="toggleLang()" id="btnLang" style="background:#ff9800;color:#fff">🌐 English</button>
+  <button onclick="cinematicTour()" id="btnCine" style="background:#e91e63;color:#fff">🎬 Cinematic Tour</button>
 </div>
 <div id="lbl"></div>
 
@@ -1129,6 +1130,125 @@ const translations = {
   '← 3.6m →':'← 3.6m →', '← 4m →':'← 4m →',
 };
 let isHR = true;
+// ═══════════════════════════════════════════════════════════════
+// CINEMATIC TOUR - smooth fly-through animation
+// ═══════════════════════════════════════════════════════════════
+let cineActive = false;
+let cineStart = 0;
+
+// Camera path keyframes: {t: 0-1, pos:[x,y,z], look:[x,y,z]}
+const cinePath = [
+  {t:0,    pos:[0, 25, -30],    look:[0, 2, 5]},        // bird's eye from street
+  {t:0.08, pos:[0, 15, -22],    look:[0, 3, 0]},        // descending toward house
+  {t:0.18, pos:[-4, 6, -12],    look:[2, 3, -8]},       // past parking, seeing garage
+  {t:0.28, pos:[2, 4, -5],      look:[-2, 3, -8]},      // front of house, entrance
+  {t:0.38, pos:[5, 5, 0],       look:[0, 2, 5]},        // sliding past house side
+  {t:0.48, pos:[3, 4, 5],       look:[0, 2, 8]},        // terrace behind house
+  {t:0.55, pos:[0, 5, 8],       look:[0, 2, 12]},       // entering first terrace
+  {t:0.65, pos:[-2, 4, 12],     look:[2, 1.5, 16]},     // through terraces
+  {t:0.75, pos:[0, 3.5, 16],    look:[3, 1, 20]},       // approaching pool area
+  {t:0.85, pos:[4, 3, 19],      look:[0, 1.2, 19]},     // pool & konoba panorama
+  {t:0.92, pos:[2, 2.5, 20],    look:[-3, 1.5, 18]},    // konoba close-up
+  {t:1,    pos:[0, 20, 10],     look:[0, 1.5, 5]},      // pull back to overview
+];
+
+function smoothstep(a, b, t) {
+  t = Math.max(0, Math.min(1, (t - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+function lerpV(a, b, t) {
+  return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
+}
+
+function getCineFrame(t) {
+  // Find surrounding keyframes
+  let k0 = cinePath[0], k1 = cinePath[cinePath.length-1];
+  for (let i = 0; i < cinePath.length-1; i++) {
+    if (t >= cinePath[i].t && t <= cinePath[i+1].t) {
+      k0 = cinePath[i]; k1 = cinePath[i+1]; break;
+    }
+  }
+  const local = smoothstep(k0.t, k1.t, t);
+  return {
+    pos: lerpV(k0.pos, k1.pos, local),
+    look: lerpV(k0.look, k1.look, local),
+  };
+}
+
+window.cinematicTour = function() {
+  if (cineActive) { cineActive = false; ctrl.enabled = true; return; }
+  cineActive = true;
+  cineStart = Date.now();
+  ctrl.enabled = false; // disable manual controls during tour
+
+  const duration = 20000; // 20 seconds total
+  const btn = document.getElementById('btnCine');
+  btn.textContent = '⏹ Stop Tour';
+
+  // Hide labels during tour for cinematic feel
+  lbls.forEach(l => l.visible = false);
+
+  // Show cinematic label
+  const el = document.getElementById('lbl');
+  el.textContent = '🎬 Cinematic Tour';
+  el.classList.add('s');
+  setTimeout(() => el.classList.remove('s'), 2000);
+
+  function cineLoop() {
+    if (!cineActive) {
+      ctrl.enabled = true;
+      btn.textContent = '🎬 Cinematic Tour';
+      lbls.forEach(l => l.visible = true);
+      return;
+    }
+
+    const elapsed = Date.now() - cineStart;
+    let t = elapsed / duration;
+
+    if (t >= 1) {
+      // Tour finished
+      cineActive = false;
+      ctrl.enabled = true;
+      btn.textContent = '🎬 Cinematic Tour';
+      lbls.forEach(l => l.visible = true);
+      const el2 = document.getElementById('lbl');
+      el2.textContent = 'Tour završen!';
+      el2.classList.add('s');
+      setTimeout(() => el2.classList.remove('s'), 2000);
+      return;
+    }
+
+    const frame = getCineFrame(t);
+    cam.position.set(...frame.pos);
+    cam.lookAt(...frame.look);
+
+    // Subtle camera sway for realism
+    const sway = Math.sin(elapsed * 0.001) * 0.05;
+    cam.position.y += sway;
+
+    // Show zone labels as we pass through
+    const zoneLabels = [
+      {t:0.1, text:'Parking i prilaz'},
+      {t:0.25, text:'Kuća i garaža'},
+      {t:0.4, text:'Terasa iza kuće'},
+      {t:0.55, text:'Terasirani travnjaci'},
+      {t:0.7, text:'Vrt i plastenik'},
+      {t:0.82, text:'Bazen i konoba'},
+    ];
+    for (const zl of zoneLabels) {
+      if (Math.abs(t - zl.t) < 0.02) {
+        el.textContent = zl.text;
+        el.classList.add('s');
+        setTimeout(() => el.classList.remove('s'), 1800);
+      }
+    }
+
+    requestAnimationFrame(cineLoop);
+  }
+  cineLoop();
+};
+
 window.toggleLang = function() {
   isHR = !isHR;
   document.getElementById('btnLang').textContent = isHR ? '🌐 English' : '🌐 Hrvatski';
