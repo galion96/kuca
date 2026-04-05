@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garden Plan - Galić Family, Knešpolje</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f5f5f0; color: #333; }
+
+  .header {
+    background: linear-gradient(135deg, #2d5016 0%, #4a7c23 50%, #6b9b37 100%);
+    color: white; padding: 30px 40px; text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .header h1 { font-size: 2em; margin-bottom: 8px; letter-spacing: 1px; }
+  .header .subtitle { font-size: 1.1em; opacity: 0.9; }
+  .header .location { font-size: 0.9em; opacity: 0.7; margin-top: 5px; }
+
+  .stats-bar {
+    display: flex; justify-content: center; gap: 40px; padding: 18px 20px;
+    background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .stat { text-align: center; }
+  .stat .num { font-size: 1.5em; font-weight: 700; color: #2d5016; }
+  .stat .label { font-size: 0.8em; color: #777; }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
+
+  .section-title {
+    font-size: 1.4em; font-weight: 700; color: #2d5016;
+    margin: 30px 0 15px; padding-bottom: 8px;
+    border-bottom: 3px solid #4a7c23;
+  }
+
+  /* Plan Canvas */
+  .plan-container {
+    background: white; border-radius: 16px; padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative;
+    margin-bottom: 30px;
+  }
+  .plan-wrapper { position: relative; display: flex; gap: 20px; }
+  .canvas-container { flex: 1; position: relative; }
+  canvas#planCanvas { width: 100%; border-radius: 12px; cursor: crosshair; }
+
+  .info-panel {
+    width: 320px; min-height: 500px; background: #fafaf5; border-radius: 12px;
+    padding: 20px; border: 1px solid #e0e0d8;
+  }
+  .info-panel h3 { color: #2d5016; margin-bottom: 10px; font-size: 1.2em; }
+  .info-panel .zone-info { display: none; }
+  .info-panel .zone-info.active { display: block; }
+  .info-panel .zone-info p { margin: 8px 0; line-height: 1.6; color: #555; }
+  .info-panel .zone-info .emoji { font-size: 2em; margin-bottom: 10px; }
+  .info-panel .hint { color: #999; font-style: italic; font-size: 0.9em; margin-top: 15px; }
+
+  /* Zone Cards */
+  .zones-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px; margin-bottom: 30px;
+  }
+  .zone-card {
+    background: white; border-radius: 16px; padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    border-left: 5px solid #4a7c23;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+  }
+  .zone-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+  .zone-card .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .zone-card .card-emoji { font-size: 2em; }
+  .zone-card .card-title { font-size: 1.1em; font-weight: 700; color: #333; }
+  .zone-card .card-elev { font-size: 0.8em; color: #888; }
+  .zone-card .card-desc { color: #666; line-height: 1.6; font-size: 0.95em; }
+  .zone-card .card-plants { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
+  .zone-card .card-plants span { display: inline-block; background: #e8f5e9; color: #2e7d32;
+    padding: 3px 10px; border-radius: 20px; font-size: 0.8em; margin: 3px 4px 3px 0; }
+
+  .zone-card.parking { border-left-color: #555; }
+  .zone-card.lawn { border-left-color: #66bb6a; }
+  .zone-card.pool { border-left-color: #42a5f5; }
+  .zone-card.konoba { border-left-color: #a1887f; }
+  .zone-card.greenhouse { border-left-color: #aed581; }
+  .zone-card.wall { border-left-color: #7cb342; }
+  .zone-card.hedge { border-left-color: #1b5e20; }
+
+  /* Cross section */
+  .cross-section {
+    background: white; border-radius: 16px; padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 30px;
+  }
+  canvas#sectionCanvas { width: 100%; border-radius: 12px; }
+
+  /* 3D View */
+  .view-3d {
+    background: white; border-radius: 16px; padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 30px;
+  }
+  canvas#terrainCanvas { width: 100%; height: 500px; border-radius: 12px; cursor: grab; }
+  .controls-3d { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
+  .controls-3d button {
+    padding: 8px 20px; border: 1px solid #ccc; border-radius: 8px;
+    background: #f5f5f0; cursor: pointer; font-size: 0.9em;
+  }
+  .controls-3d button:hover { background: #e8f5e9; border-color: #4a7c23; }
+  .controls-3d button.active { background: #4a7c23; color: white; border-color: #4a7c23; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 5px; margin-bottom: 20px; }
+  .tab {
+    padding: 10px 24px; border-radius: 10px 10px 0 0; cursor: pointer;
+    background: #e8e8e0; color: #666; font-weight: 600; font-size: 0.95em;
+    border: 1px solid #ddd; border-bottom: none;
+  }
+  .tab.active { background: white; color: #2d5016; border-bottom: 1px solid white; margin-bottom: -1px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  footer {
+    text-align: center; padding: 20px; color: #999; font-size: 0.85em;
+    border-top: 1px solid #e0e0d8; margin-top: 40px;
+  }
+
+  @media (max-width: 900px) {
+    .plan-wrapper { flex-direction: column; }
+    .info-panel { width: 100%; min-height: auto; }
+    .stats-bar { flex-wrap: wrap; gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Our Garden Plan</h1>
+  <div class="subtitle">Landscape Design for the Galic Family Home</div>
+  <div class="location">Parcel 917/2, Knespolje, Siroki Brijeg</div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="num">3.1m</div><div class="label">Elevation Drop</div></div>
+  <div class="stat"><div class="num">281.3m</div><div class="label">Highest Point</div></div>
+  <div class="stat"><div class="num">278.3m</div><div class="label">Lowest Point</div></div>
+  <div class="stat"><div class="num">7</div><div class="label">Garden Zones</div></div>
+  <div class="stat"><div class="num">6</div><div class="label">Parking Spots</div></div>
+  <div class="stat"><div class="num">3</div><div class="label">Terraced Levels</div></div>
+</div>
+
+<div class="main">
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">Overview</div>
+    <div class="tab" onclick="switchTab('plan')">Interactive Plan</div>
+    <div class="tab" onclick="switchTab('section')">Cross Section</div>
+    <div class="tab" onclick="switchTab('3d')">3D Terrain</div>
+  </div>
+
+  <!-- TAB 1: OVERVIEW -->
+  <div class="tab-content active" id="tab-overview">
+    <p style="font-size:1.05em; line-height:1.8; color:#555; margin-bottom:25px;">
+      Our property slopes downhill from northwest to southeast, dropping about <strong>3 meters</strong>
+      across the site. Instead of fighting the slope, we'll work with it &mdash; creating
+      <strong>terraced lawn platforms</strong> stepping down the hill, each separated by stone retaining
+      walls. A <strong>10-meter asphalt driveway</strong> connects the street to the property, leading to
+      <strong>parking for 6 cars</strong> (side by side). In the middle: <strong>green lawn terraces</strong>.
+      At the bottom: a <strong>swimming pool and outdoor kitchen</strong> (konoba). The existing concrete
+      wall along the boundary will be covered with <strong>climbing plants</strong>, and a <strong>live
+      evergreen hedge</strong> will provide privacy from the neighboring parcel.
+    </p>
+
+    <div class="zones-grid">
+
+      <div class="zone-card parking" onclick="switchTab('plan'); highlightZone('parking')">
+        <div class="card-header">
+          <div class="card-emoji">🚗</div>
+          <div><div class="card-title">Driveway & Parking</div>
+          <div class="card-elev">Elevation: ~281m (highest zone)</div></div>
+        </div>
+        <div class="card-desc">
+          A <strong>10-meter asphalt driveway</strong> from the street leads to a parking area for
+          <strong>6 cars side by side</strong>. Slight grade for natural rainwater drainage toward the lower zones.
+        </div>
+      </div>
+
+      <div class="zone-card lawn" onclick="switchTab('plan'); highlightZone('lawn')">
+        <div class="card-header">
+          <div class="card-emoji">🌿</div>
+          <div><div class="card-title">Terraced Lawns</div>
+          <div class="card-elev">Elevation: 281m → 279m (3 levels)</div></div>
+        </div>
+        <div class="card-desc">
+          Behind the house, <strong>3 flat lawn platforms</strong> step down the slope. Each terrace
+          is a level green area, separated by <strong>stone retaining walls</strong> (~0.5-0.8m high).
+          Stone steps connect the levels. Simple, clean grass &mdash; no complicated landscaping.
+        </div>
+      </div>
+
+      <div class="zone-card pool" onclick="switchTab('plan'); highlightZone('pool')">
+        <div class="card-header">
+          <div class="card-emoji">🏊</div>
+          <div><div class="card-title">Swimming Pool</div>
+          <div class="card-elev">Elevation: ~278.5m (lowest zone)</div></div>
+        </div>
+        <div class="card-desc">
+          Located at the <strong>lowest part of our property</strong> (southeast corner). Natural drainage
+          works in our favor here. Surrounded by a stone/wood deck terrace.
+        </div>
+      </div>
+
+      <div class="zone-card konoba" onclick="switchTab('plan'); highlightZone('konoba')">
+        <div class="card-header">
+          <div class="card-emoji">🍖</div>
+          <div><div class="card-title">Konoba (Outdoor Kitchen)</div>
+          <div class="card-elev">Elevation: ~278.5m (next to pool)</div></div>
+        </div>
+        <div class="card-desc">
+          Traditional outdoor kitchen & entertaining area, right next to the pool.
+          Perfect for summer gatherings &mdash; grill, seating area, shade.
+        </div>
+      </div>
+
+      <div class="zone-card greenhouse" onclick="switchTab('plan'); highlightZone('greenhouse')">
+        <div class="card-header">
+          <div class="card-emoji">🌱</div>
+          <div><div class="card-title">Greenhouse</div>
+          <div class="card-elev">Elevation: ~279.5m (mid zone)</div></div>
+        </div>
+        <div class="card-desc">
+          A <strong>plastenik</strong> (greenhouse) on the side of the property for growing vegetables
+          and herbs year-round. Connected by a stone path.
+        </div>
+      </div>
+
+      <div class="zone-card wall" onclick="switchTab('plan'); highlightZone('wall')">
+        <div class="card-header">
+          <div class="card-emoji">🌿</div>
+          <div><div class="card-title">Green Wall (Climbing Plants)</div>
+          <div class="card-elev">Along the existing concrete wall</div></div>
+        </div>
+        <div class="card-desc">
+          The existing <strong>concrete retaining wall</strong> (currently bare) will be covered with
+          climbing plants on wire mesh. It will transform from grey concrete into a living green wall.
+        </div>
+        <div class="card-plants">
+          <span>Ivy</span><span>Wisteria</span><span>Jasmine</span><span>Passionflower</span>
+        </div>
+      </div>
+
+      <div class="zone-card hedge" onclick="switchTab('plan'); highlightZone('hedge')">
+        <div class="card-header">
+          <div class="card-emoji">🌲</div>
+          <div><div class="card-title">Live Hedge (Privacy Screen)</div>
+          <div class="card-elev">Along boundary with parcel 917/3</div></div>
+        </div>
+        <div class="card-desc">
+          A <strong>1.5-2m tall evergreen hedge</strong> along the left property boundary, providing
+          privacy from the neighboring parcel (917/3, not ours).
+        </div>
+        <div class="card-plants">
+          <span>Laurel</span><span>Thuja</span><span>Cypress</span><span>Boxwood</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TAB 2: INTERACTIVE PLAN -->
+  <div class="tab-content" id="tab-plan">
+    <div class="plan-container">
+      <div class="plan-wrapper">
+        <div class="canvas-container">
+          <canvas id="planCanvas" width="700" height="900"></canvas>
+        </div>
+        <div class="info-panel">
+          <h3>Zone Details</h3>
+          <div class="zone-info active" id="info-default">
+            <div class="emoji">👆</div>
+            <p><strong>Hover over the plan</strong> to see details about each zone.</p>
+            <p>Click on a zone to keep its info visible.</p>
+            <div class="hint">
+              The plan shows a top-down view of the property. Higher terrain (281m) is at the
+              top-left, lower terrain (278m) is at the bottom-right.
+            </div>
+          </div>
+          <div class="zone-info" id="info-parking">
+            <div class="emoji">🚗</div>
+            <p><strong>Driveway & Parking</strong></p>
+            <p>10m asphalt driveway from the street, then <strong>6 parking spots side by side</strong> (~15m wide).</p>
+            <p><strong>Elevation:</strong> ~281m (highest point)</p>
+            <p><strong>Surface:</strong> Asphalt, graded for drainage</p>
+          </div>
+          <div class="zone-info" id="info-house">
+            <div class="emoji">🏠</div>
+            <p><strong>The House</strong></p>
+            <p>Our residential building (stambeni objekt).</p>
+            <p><strong>Elevation:</strong> ~281m</p>
+          </div>
+          <div class="zone-info" id="info-lawn">
+            <div class="emoji">🌿</div>
+            <p><strong>Terraced Lawn</strong></p>
+            <p>Flat lawn platform with grass. Each terrace separated by a stone retaining wall that drops ~0.5-0.8m to the next level.</p>
+            <p><strong>Elevation:</strong> Steps from 280.5m down to 279m</p>
+            <p><strong>Retaining walls:</strong> Stone or gabion, 0.5-0.8m each</p>
+          </div>
+          <div class="zone-info" id="info-pool">
+            <div class="emoji">🏊</div>
+            <p><strong>Swimming Pool</strong></p>
+            <p>Located at the lowest point of our property. Natural drainage flows here. Surrounded by a stone/wood deck.</p>
+            <p><strong>Elevation:</strong> ~278.5m</p>
+          </div>
+          <div class="zone-info" id="info-konoba">
+            <div class="emoji">🍖</div>
+            <p><strong>Konoba (Outdoor Kitchen)</strong></p>
+            <p>Traditional covered outdoor kitchen & grill area. Right next to the pool for easy entertaining.</p>
+            <p><strong>Elevation:</strong> ~278.5m</p>
+          </div>
+          <div class="zone-info" id="info-greenhouse">
+            <div class="emoji">🌱</div>
+            <p><strong>Greenhouse (Plastenik)</strong></p>
+            <p>For growing vegetables and herbs year-round. Accessed via stone path from the house.</p>
+            <p><strong>Elevation:</strong> ~279.5m</p>
+          </div>
+          <div class="zone-info" id="info-wall">
+            <div class="emoji">🌿</div>
+            <p><strong>Green Climbing Wall</strong></p>
+            <p>Existing concrete wall covered with climbing plants: ivy, wisteria, jasmine. Wire mesh support.</p>
+          </div>
+          <div class="zone-info" id="info-hedge">
+            <div class="emoji">🌲</div>
+            <p><strong>Live Evergreen Hedge</strong></p>
+            <p>1.5-2m tall hedge along boundary with parcel 917/3 (neighbor). Laurel, thuja, or cypress.</p>
+          </div>
+          <div class="zone-info" id="info-path">
+            <div class="emoji">🪨</div>
+            <p><strong>Stone Pathway</strong></p>
+            <p>Natural stone or gravel path connecting the house to the pool/konoba area and greenhouse. Steps through retaining walls.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: CROSS SECTION -->
+  <div class="tab-content" id="tab-section">
+    <div class="cross-section">
+      <p style="color:#777; margin-bottom:15px;">
+        This cross-section shows how the terraces step down the slope from the house (left)
+        to the pool (right). Each flat platform is separated by a retaining wall.
+      </p>
+      <canvas id="sectionCanvas" width="1200" height="400"></canvas>
+    </div>
+  </div>
+
+  <!-- TAB 4: 3D VIEW -->
+  <div class="tab-content" id="tab-3d">
+    <div class="view-3d">
+      <p style="color:#777; margin-bottom:15px;">
+        Click and drag to rotate the terrain. Scroll to zoom. The colors show elevation &mdash;
+        green is higher, blue/brown is lower.
+      </p>
+      <canvas id="terrainCanvas" width="900" height="500"></canvas>
+      <div class="controls-3d">
+        <button onclick="resetView()">Reset View</button>
+        <button onclick="toggleLabels()" id="btnLabels" class="active">Show Labels</button>
+        <button onclick="toggleTerrain()" id="btnTerrain">Show Terrain Only</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Garden Plan for Galic Family &bull; Parcel 917/2, Knespolje, Siroki Brijeg &bull;
+  Generated from CAD survey data (106 elevation points)
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA (extracted from CAD drawing)
+// ═══════════════════════════════════════════════════════════════
+const elevationPoints = [
+  {x:110.3,y:362.1,z:280.74},{x:113.9,y:358.0,z:280.73},{x:123.4,y:368.8,z:280.74},
+  {x:83.4,y:372.5,z:280.48},{x:116.4,y:343.6,z:280.68},{x:154.8,y:308.4,z:280.99},
+  {x:190.6,y:276.1,z:281.15},{x:212.8,y:281.8,z:281.20},{x:214.5,y:413.2,z:280.77},
+  {x:224.2,y:352.2,z:280.81},{x:229.8,y:457.1,z:280.98},{x:192.6,y:421.4,z:280.92},
+  {x:197.2,y:382.7,z:280.91},{x:243.9,y:387.3,z:280.83},{x:258.3,y:461.2,z:280.83},
+  {x:256.6,y:484.6,z:280.90},{x:276.9,y:509.7,z:280.90},{x:279.0,y:353.2,z:280.79},
+  {x:280.1,y:497.0,z:280.76},{x:284.4,y:299.6,z:280.86},{x:292.9,y:435.3,z:280.75},
+  {x:298.3,y:532.4,z:280.84},{x:301.1,y:534.3,z:280.65},{x:302.9,y:331.6,z:280.92},
+  {x:305.9,y:469.6,z:280.67},{x:310.0,y:323.4,z:281.03},{x:313.6,y:525.2,z:280.65},
+  {x:322.8,y:555.9,z:280.51},{x:326.2,y:401.3,z:280.69},{x:335.2,y:433.1,z:280.58},
+  {x:341.3,y:563.9,z:280.28},{x:343.5,y:501.6,z:280.46},{x:346.7,y:360.5,z:281.06},
+  {x:347.3,y:579.4,z:280.35},{x:354.6,y:374.6,z:280.72},{x:358.5,y:547.1,z:280.15},
+  {x:367.5,y:484.8,z:280.38},{x:368.1,y:401.2,z:280.47},{x:369.4,y:602.4,z:280.22},
+  {x:375.1,y:387.0,z:281.03},{x:377.2,y:589.4,z:280.00},{x:380.1,y:386.0,z:280.61},
+  {x:381.4,y:522.6,z:279.95},{x:391.0,y:625.7,z:280.08},{x:391.2,y:465.3,z:280.03},
+  {x:392.4,y:396.5,z:280.15},{x:389.7,y:395.3,z:280.57},{x:394.0,y:628.8,z:279.71},
+  {x:396.5,y:571.8,z:279.77},{x:403.3,y:400.2,z:279.82},{x:407.7,y:629.2,z:279.48},
+  {x:410.7,y:490.0,z:279.94},{x:411.6,y:446.4,z:279.69},{x:415.8,y:409.5,z:279.91},
+  {x:418.2,y:546.0,z:279.42},{x:420.6,y:610.8,z:279.41},{x:423.1,y:656.6,z:279.24},
+  {x:430.9,y:424.6,z:280.03},{x:435.7,y:466.1,z:279.38},{x:437.9,y:584.3,z:279.04},
+  {x:438.5,y:653.8,z:279.14},{x:441.6,y:520.5,z:279.35},{x:454.3,y:446.2,z:279.75},
+  {x:455.8,y:626.3,z:279.06},{x:456.1,y:500.8,z:279.42},{x:457.7,y:676.1,z:278.56},
+  {x:458.4,y:665.1,z:279.08},{x:459.5,y:700.5,z:278.65},{x:460.5,y:549.0,z:279.08},
+  {x:461.1,y:452.7,z:279.13},{x:467.4,y:485.4,z:279.07},{x:469.1,y:658.4,z:278.46},
+  {x:471.6,y:601.1,z:278.91},{x:471.6,y:643.0,z:278.93},{x:473.9,y:677.1,z:278.66},
+  {x:475.9,y:476.9,z:279.09},{x:479.7,y:478.0,z:278.65},{x:482.3,y:629.0,z:278.57},
+  {x:486.5,y:623.3,z:278.88},{x:486.7,y:579.2,z:278.76},{x:489.9,y:516.9,z:278.84},
+  {x:496.5,y:597.8,z:278.73},{x:498.9,y:630.2,z:278.63},{x:500.7,y:600.2,z:278.56},
+  {x:504.5,y:506.4,z:278.37},{x:505.6,y:555.5,z:278.71},{x:508.0,y:508.2,z:278.29},
+  {x:509.8,y:576.6,z:278.63},{x:513.9,y:576.0,z:278.52},{x:516.6,y:539.1,z:278.71},
+  {x:520.0,y:562.6,z:278.55},{x:523.0,y:587.1,z:278.65},{x:530.1,y:551.2,z:278.46},
+  {x:531.9,y:535.4,z:278.28},{x:540.3,y:536.0,z:278.27},{x:547.5,y:530.4,z:278.53},
+  {x:144.2,y:343.5,z:280.88},{x:146.2,y:373.9,z:280.93},{x:147.8,y:292.5,z:281.04},
+  {x:217.1,y:233.4,z:281.23},{x:233.8,y:238.7,z:281.27},{x:247.3,y:328.3,z:281.03},
+  {x:247.5,y:203.2,z:281.32},{x:261.9,y:213.7,z:281.34},
+  {x:74.2,y:358.8,z:280.60}
+];
+
+// Property boundary of 917/2 (PDF coordinates)
+const boundary = [
+  [175.9,277.0],[126.8,324.5],[107.3,345.5],
+  [447.2,696.8],[497.3,626.5],[535.7,539.2],
+  [364.3,370.7],[227.0,232.8],[175.9,277.0]
+];
+
+// Concrete wall (cyan line)
+const wallLower = [
+  [114.0,351.2],[143.8,381.6],[190.1,429.0],[227.4,464.9],
+  [254.2,492.2],[277.3,516.1],[299.8,536.9],[322.9,560.3],
+  [347.3,584.0],[369.5,606.8],[392.6,630.7],[424.0,661.7],[455.9,694.7]
+];
+const wallUpper = [
+  [233.3,244.4],[283.4,293.6],[309.1,318.2],[347.2,354.6],
+  [376.8,383.6],[400.9,408.0],[505.3,506.2],[545.5,537.5]
+];
+
+// Boundary toward 917/3 (left side)
+const boundary917_3 = [[175.9,277.0],[126.8,324.5],[107.3,345.5]];
+
+// ═══════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`#tab-${name}`).classList.add('active');
+  // Find matching tab button
+  const tabs = document.querySelectorAll('.tab');
+  const tabMap = {overview:0, plan:1, section:2, '3d':3};
+  if (tabMap[name] !== undefined) tabs[tabMap[name]].classList.add('active');
+
+  // Initialize canvases when shown
+  if (name === 'plan' && !planDrawn) drawPlan();
+  if (name === 'section' && !sectionDrawn) drawSection();
+  if (name === '3d' && !terrainDrawn) draw3D();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2D PLAN
+// ═══════════════════════════════════════════════════════════════
+let planDrawn = false;
+let activeZone = null;
+
+// Define interactive zones (PDF coordinates)
+const zones = [
+  {
+    id: 'parking', name: 'Driveway & Parking',
+    poly: [[200,163],[280,163],[350,280],[270,240],[220,240]],
+    color: 'rgba(85,85,85,0.55)', borderColor: '#333'
+  },
+  {
+    id: 'house', name: 'House',
+    poly: [[215,226],[245,201],[260,221],[235,350],[150,290],[96,333],[72,355],[82,380]],
+    color: 'rgba(200,200,200,0.7)', borderColor: '#555'
+  },
+  {
+    id: 'lawn', name: 'Terraced Lawn (Level 1)',
+    poly: [[170,380],[240,310],[340,410],[270,480]],
+    color: 'rgba(144,238,144,0.45)', borderColor: '#2E8B57'
+  },
+  {
+    id: 'lawn', name: 'Terraced Lawn (Level 2)',
+    poly: [[275,485],[345,415],[440,510],[370,580]],
+    color: 'rgba(124,205,124,0.45)', borderColor: '#2E8B57'
+  },
+  {
+    id: 'lawn', name: 'Terraced Lawn (Level 3)',
+    poly: [[375,585],[445,515],[500,570],[430,640]],
+    color: 'rgba(106,175,106,0.45)', borderColor: '#2E8B57'
+  },
+  {
+    id: 'pool', name: 'Swimming Pool',
+    poly: [[440,610],[510,540],[540,570],[470,640]],
+    color: 'rgba(135,206,235,0.6)', borderColor: '#4169E1'
+  },
+  {
+    id: 'konoba', name: 'Konoba',
+    poly: [[400,645],[460,585],[490,615],[430,675]],
+    color: 'rgba(205,133,63,0.55)', borderColor: '#8B4513'
+  },
+  {
+    id: 'greenhouse', name: 'Greenhouse',
+    poly: [[410,430],[470,370],[500,400],[440,460]],
+    color: 'rgba(240,255,240,0.6)', borderColor: '#228B22'
+  }
+];
+
+function drawPlan() {
+  const canvas = document.getElementById('planCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Scale PDF coords to canvas
+  // PDF visible area: roughly x=50-580, y=150-750
+  const pad = 30;
+  const pdfMinX = 50, pdfMaxX = 580, pdfMinY = 150, pdfMaxY = 750;
+  const scaleX = (W - 2*pad) / (pdfMaxX - pdfMinX);
+  const scaleY = (H - 2*pad) / (pdfMaxY - pdfMinY);
+  const scale = Math.min(scaleX, scaleY);
+
+  function tx(x) { return pad + (x - pdfMinX) * scale; }
+  function ty(y) { return pad + (y - pdfMinY) * scale; }
+
+  // Background
+  ctx.fillStyle = '#fafaf5';
+  ctx.fillRect(0, 0, W, H);
+
+  // Elevation heatmap (subtle)
+  for (const p of elevationPoints) {
+    const px = tx(p.x), py = ty(p.y);
+    const t = (p.z - 278.2) / 3.2;
+    const r = Math.round(80 + (1-t)*100);
+    const g = Math.round(140 + t*80);
+    const b = Math.round(80 + (1-t)*60);
+    ctx.beginPath();
+    ctx.arc(px, py, 18, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${r},${g},${b},0.15)`;
+    ctx.fill();
+  }
+
+  // Property boundary
+  ctx.beginPath();
+  ctx.moveTo(tx(boundary[0][0]), ty(boundary[0][1]));
+  for (let i = 1; i < boundary.length; i++) {
+    ctx.lineTo(tx(boundary[i][0]), ty(boundary[i][1]));
+  }
+  ctx.closePath();
+  ctx.strokeStyle = '#cc3333';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Concrete wall
+  ctx.beginPath();
+  ctx.moveTo(tx(wallUpper[0][0]), ty(wallUpper[0][1]));
+  for (const p of wallUpper) ctx.lineTo(tx(p[0]), ty(p[1]));
+  ctx.strokeStyle = '#0066CC';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tx(wallLower[0][0]), ty(wallLower[0][1]));
+  for (const p of wallLower) ctx.lineTo(tx(p[0]), ty(p[1]));
+  ctx.stroke();
+
+  // Draw zones
+  for (const zone of zones) {
+    ctx.beginPath();
+    ctx.moveTo(tx(zone.poly[0][0]), ty(zone.poly[0][1]));
+    for (let i = 1; i < zone.poly.length; i++) {
+      ctx.lineTo(tx(zone.poly[i][0]), ty(zone.poly[i][1]));
+    }
+    ctx.closePath();
+    ctx.fillStyle = zone.color;
+    ctx.fill();
+    ctx.strokeStyle = zone.borderColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Retaining walls (brown lines between terraces)
+  const wallLines = [
+    [[270,480],[340,410]],
+    [[370,580],[440,510]],
+  ];
+  for (const wl of wallLines) {
+    ctx.beginPath();
+    ctx.moveTo(tx(wl[0][0]), ty(wl[0][1]));
+    ctx.lineTo(tx(wl[1][0]), ty(wl[1][1]));
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
+
+  // Live hedge toward 917/3
+  for (let i = 0; i < boundary917_3.length - 1; i++) {
+    const x1 = boundary917_3[i][0], y1 = boundary917_3[i][1];
+    const x2 = boundary917_3[i+1][0], y2 = boundary917_3[i+1][1];
+    const steps = 8;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const hx = tx(x1 + t*(x2-x1));
+      const hy = ty(y1 + t*(y2-y1));
+      ctx.beginPath();
+      ctx.arc(hx, hy, 6, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,100,0,0.4)';
+      ctx.fill();
+      ctx.strokeStyle = '#004000';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+
+  // Green climbing plants on wall
+  for (const p of wallLower.concat(wallUpper)) {
+    const px = tx(p[0]), py = ty(p[1]);
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(34,139,34,0.4)';
+    ctx.fill();
+  }
+
+  // Stone path (dashed)
+  ctx.beginPath();
+  ctx.setLineDash([6, 4]);
+  ctx.moveTo(tx(220), ty(340));
+  ctx.quadraticCurveTo(tx(280), ty(450), tx(320), ty(550));
+  ctx.quadraticCurveTo(tx(380), ty(600), tx(450), ty(620));
+  ctx.strokeStyle = '#D2B48C';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tx(300), ty(420));
+  ctx.quadraticCurveTo(tx(370), ty(410), tx(420), ty(440));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels
+  ctx.font = 'bold 11px system-ui';
+  ctx.textAlign = 'center';
+
+  const labels = [
+    {text:'10m DRIVEWAY\n+ 6-CAR PARKING', x:260, y:210, color:'#fff'},
+    {text:'HOUSE', x:190, y:310, color:'#333'},
+    {text:'LAWN 1\n≈280.5m', x:260, y:400, color:'#006400'},
+    {text:'LAWN 2\n≈279.8m', x:365, y:500, color:'#006400'},
+    {text:'LAWN 3\n≈279m', x:440, y:575, color:'#006400'},
+    {text:'POOL\n≈278.5m', x:485, y:590, color:'#00008B'},
+    {text:'KONOBA', x:440, y:650, color:'#3E2723'},
+    {text:'GREEN-\nHOUSE', x:455, y:415, color:'#006400'},
+    {text:'917/3\n(neighbor)', x:90, y:420, color:'#999'},
+    {text:'916', x:520, y:350, color:'#999'},
+    {text:'HEDGE', x:130, y:310, color:'#004000'},
+  ];
+
+  for (const lbl of labels) {
+    const lines = lbl.text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const lx = tx(lbl.x), ly = ty(lbl.y) + i * 14;
+      // Background
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      const w = ctx.measureText(lines[i]).width + 8;
+      ctx.fillRect(lx - w/2, ly - 10, w, 14);
+      // Text
+      ctx.fillStyle = lbl.color;
+      ctx.fillText(lines[i], lx, ly);
+    }
+  }
+
+  // Retaining wall labels
+  ctx.font = 'bold 9px system-ui';
+  ctx.fillStyle = '#8B4513';
+  ctx.save();
+  ctx.translate(tx(310), ty(445));
+  ctx.rotate(-Math.PI/4);
+  ctx.fillText('RETAINING WALL', 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(tx(410), ty(545));
+  ctx.rotate(-Math.PI/4);
+  ctx.fillText('RETAINING WALL', 0, 0);
+  ctx.restore();
+
+  // Concrete wall label
+  ctx.font = 'bold 9px system-ui';
+  ctx.fillStyle = '#0066CC';
+  ctx.save();
+  ctx.translate(tx(530), ty(510));
+  ctx.rotate(-Math.PI/4);
+  ctx.fillText('CONCRETE WALL + CLIMBING PLANTS', 0, 0);
+  ctx.restore();
+
+  // North arrow
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 16px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', tx(350), ty(165));
+  ctx.beginPath();
+  ctx.moveTo(tx(350), ty(175));
+  ctx.lineTo(tx(350), ty(195));
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(tx(350), ty(175));
+  ctx.lineTo(tx(346), ty(182));
+  ctx.lineTo(tx(354), ty(182));
+  ctx.closePath();
+  ctx.fill();
+
+  // Slope arrow
+  ctx.strokeStyle = '#CC0000';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath();
+  ctx.moveTo(tx(250), ty(250));
+  ctx.lineTo(tx(500), ty(600));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = 'bold 10px system-ui';
+  ctx.fillStyle = '#CC0000';
+  ctx.save();
+  ctx.translate(tx(400), ty(440));
+  ctx.rotate(-Math.PI/4 - 0.15);
+  ctx.fillText('SLOPE ↘ (3m drop)', 0, 0);
+  ctx.restore();
+
+  planDrawn = true;
+
+  // Hover detection
+  canvas.txFn = tx;
+  canvas.tyFn = ty;
+  canvas.scaleFn = scale;
+  canvas.pdfMinX = pdfMinX;
+  canvas.pdfMinY = pdfMinY;
+
+  canvas.addEventListener('mousemove', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    // Convert back to PDF coords
+    const pdfX = pdfMinX + (mx - pad) / scale;
+    const pdfY = pdfMinY + (my - pad) / scale;
+
+    let found = null;
+    for (const zone of zones) {
+      if (pointInPoly(pdfX, pdfY, zone.poly)) {
+        found = zone.id;
+        break;
+      }
+    }
+    // Check hedge
+    if (!found) {
+      for (const bp of boundary917_3) {
+        if (Math.hypot(pdfX - bp[0], pdfY - bp[1]) < 20) {
+          found = 'hedge'; break;
+        }
+      }
+    }
+    // Check wall
+    if (!found) {
+      for (const wp of wallLower.concat(wallUpper)) {
+        if (Math.hypot(pdfX - wp[0], pdfY - wp[1]) < 15) {
+          found = 'wall'; break;
+        }
+      }
+    }
+    // Check path
+    if (!found && pdfY > 400 && pdfX > 200 && pdfX < 460) {
+      // rough path check
+      const pathDist = Math.abs((pdfY - 340) / (pdfX - 220) - 1.5);
+      if (pathDist < 0.5) found = 'path';
+    }
+
+    showZoneInfo(found);
+    canvas.style.cursor = found ? 'pointer' : 'crosshair';
+  });
+}
+
+function pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function showZoneInfo(zoneId) {
+  document.querySelectorAll('.zone-info').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById('info-' + (zoneId || 'default'));
+  if (target) target.classList.add('active');
+}
+
+function highlightZone(zoneId) {
+  showZoneInfo(zoneId);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CROSS SECTION
+// ═══════════════════════════════════════════════════════════════
+let sectionDrawn = false;
+
+function drawSection() {
+  const canvas = document.getElementById('sectionCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = {top: 40, bottom: 50, left: 80, right: 40};
+
+  const zMin = 277.5, zMax = 282;
+  const dMax = 16; // meters along slope
+
+  function sx(d) { return pad.left + d / dMax * (W - pad.left - pad.right); }
+  function sy(z) { return pad.top + (zMax - z) / (zMax - zMin) * (H - pad.top - pad.bottom); }
+
+  // Background
+  ctx.fillStyle = '#fafaf5';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#e0e0d8';
+  ctx.lineWidth = 1;
+  for (let z = 278; z <= 281.5; z += 0.5) {
+    ctx.beginPath();
+    ctx.moveTo(pad.left, sy(z));
+    ctx.lineTo(W - pad.right, sy(z));
+    ctx.stroke();
+    ctx.fillStyle = '#999';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(z.toFixed(1) + 'm', pad.left - 8, sy(z) + 4);
+  }
+
+  // Natural terrain profile (approximation)
+  const profile = [
+    [0, 281.3], [2, 281.0], [4, 280.5], [6, 280.1], [8, 279.6],
+    [10, 279.1], [12, 278.7], [14, 278.4], [16, 278.3]
+  ];
+
+  // Terrain fill
+  ctx.beginPath();
+  ctx.moveTo(sx(0), sy(277.5));
+  for (const [d, z] of profile) ctx.lineTo(sx(d), sy(z));
+  ctx.lineTo(sx(16), sy(277.5));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(139,115,85,0.15)';
+  ctx.fill();
+
+  // Terrain line
+  ctx.beginPath();
+  for (let i = 0; i < profile.length; i++) {
+    const [d, z] = profile[i];
+    if (i === 0) ctx.moveTo(sx(d), sy(z));
+    else ctx.lineTo(sx(d), sy(z));
+  }
+  ctx.strokeStyle = '#8B7355';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([4,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Terraces
+  const terraces = [
+    {name: '10m Driveway\n& 6-Car Parking', z: 281.0, d0: 0, d1: 3, color: '#888', textColor: '#fff'},
+    {name: 'Lawn\nTerrace 1', z: 280.4, d0: 3.3, d1: 6, color: '#90EE90', textColor: '#006400'},
+    {name: 'Lawn\nTerrace 2', z: 279.7, d0: 6.3, d1: 9, color: '#7CCD7C', textColor: '#006400'},
+    {name: 'Lawn\nTerrace 3', z: 279.0, d0: 9.3, d1: 12, color: '#6AAF6A', textColor: '#006400'},
+    {name: 'Pool &\nKonoba', z: 278.4, d0: 12.3, d1: 15.5, color: '#87CEEB', textColor: '#00008B'},
+  ];
+
+  for (const t of terraces) {
+    // Platform fill
+    ctx.fillStyle = t.color;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(sx(t.d0), sy(t.z), sx(t.d1) - sx(t.d0), sy(277.5) - sy(t.z));
+    ctx.globalAlpha = 1;
+
+    // Platform top line
+    ctx.beginPath();
+    ctx.moveTo(sx(t.d0), sy(t.z));
+    ctx.lineTo(sx(t.d1), sy(t.z));
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    const lines = t.name.split('\n');
+    ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = t.textColor;
+    const cx = (sx(t.d0) + sx(t.d1)) / 2;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], cx, sy(t.z) + 25 + i * 16);
+    }
+    ctx.font = '11px system-ui';
+    ctx.fillStyle = '#888';
+    ctx.fillText(t.z.toFixed(1) + 'm', cx, sy(t.z) - 8);
+  }
+
+  // Retaining walls
+  for (let i = 0; i < terraces.length - 1; i++) {
+    const curr = terraces[i];
+    const next = terraces[i + 1];
+    const wx = sx(curr.d1) + (sx(next.d0) - sx(curr.d1)) / 2;
+
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(wx - 4, sy(curr.z), 8, sy(next.z) - sy(curr.z));
+
+    // Wall label
+    ctx.save();
+    ctx.translate(wx + 14, (sy(curr.z) + sy(next.z)) / 2);
+    ctx.font = 'bold 9px system-ui';
+    ctx.fillStyle = '#8B4513';
+    ctx.textAlign = 'left';
+    const drop = (curr.z - next.z).toFixed(1);
+    ctx.fillText(`Wall ${drop}m`, 0, 0);
+    ctx.restore();
+  }
+
+  // Axes
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, H - pad.bottom);
+  ctx.lineTo(W - pad.right, H - pad.bottom);
+  ctx.stroke();
+
+  // X axis label
+  ctx.fillStyle = '#555';
+  ctx.font = '12px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Distance along slope (m)', W/2, H - 10);
+
+  // Y axis label
+  ctx.save();
+  ctx.translate(15, H/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('Elevation (m above sea level)', 0, 0);
+  ctx.restore();
+
+  // Title
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.fillText('Cross Section: How the Terraces Step Down the Slope', W/2, 25);
+
+  sectionDrawn = true;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3D TERRAIN VIEW
+// ═══════════════════════════════════════════════════════════════
+let terrainDrawn = false;
+let showLabels3D = true;
+let showZones3D = true;
+let rotX = 0.6, rotZ = 0.8;
+let dragStart = null;
+
+function draw3D() {
+  const canvas = document.getElementById('terrainCanvas');
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+
+  canvas.addEventListener('mousedown', e => { dragStart = {x: e.clientX, y: e.clientY, rx: rotX, rz: rotZ}; });
+  canvas.addEventListener('mousemove', e => {
+    if (!dragStart) return;
+    rotZ = dragStart.rz + (e.clientX - dragStart.x) * 0.005;
+    rotX = Math.max(0.1, Math.min(1.2, dragStart.rx - (e.clientY - dragStart.y) * 0.005));
+    render3D();
+  });
+  canvas.addEventListener('mouseup', () => { dragStart = null; });
+  canvas.addEventListener('mouseleave', () => { dragStart = null; });
+
+  render3D();
+  terrainDrawn = true;
+}
+
+function render3D() {
+  const canvas = document.getElementById('terrainCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  ctx.fillStyle = '#fafaf5';
+  ctx.fillRect(0, 0, W, H);
+
+  // Normalize points to 0-1 range
+  const xMin = Math.min(...elevationPoints.map(p=>p.x));
+  const xMax = Math.max(...elevationPoints.map(p=>p.x));
+  const yMin = Math.min(...elevationPoints.map(p=>p.y));
+  const yMax = Math.max(...elevationPoints.map(p=>p.y));
+  const zMin = 278.2, zMax = 281.5;
+
+  // Create grid
+  const gridN = 30;
+  const gridPts = [];
+
+  for (let gi = 0; gi <= gridN; gi++) {
+    for (let gj = 0; gj <= gridN; gj++) {
+      const nx = gi / gridN;
+      const ny = gj / gridN;
+      const px = xMin + nx * (xMax - xMin);
+      const py = yMin + ny * (yMax - yMin);
+
+      // IDW interpolation
+      let wSum = 0, zSum = 0;
+      for (const ep of elevationPoints) {
+        const d = Math.hypot(px - ep.x, py - ep.y) + 0.1;
+        const w = 1 / (d * d);
+        wSum += w;
+        zSum += w * ep.z;
+      }
+      const z = zSum / wSum;
+      gridPts.push({nx, ny, nz: (z - zMin) / (zMax - zMin), z});
+    }
+  }
+
+  // 3D projection
+  const cosZ = Math.cos(rotZ), sinZ = Math.sin(rotZ);
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  const scale3d = Math.min(W, H) * 0.35;
+
+  function project(nx, ny, nz) {
+    let x = (nx - 0.5);
+    let y = (ny - 0.5);
+    let z = nz * 0.4;
+
+    // Rotate around Z
+    const x2 = x * cosZ - y * sinZ;
+    const y2 = x * sinZ + y * cosZ;
+    // Rotate around X
+    const y3 = y2 * cosX - z * sinX;
+    const z3 = y2 * sinX + z * cosX;
+
+    return {
+      x: W/2 + x2 * scale3d,
+      y: H/2 - y3 * scale3d - z3 * scale3d * 0.3,
+      depth: z3
+    };
+  }
+
+  // Draw grid cells (back to front)
+  const cells = [];
+  for (let gi = 0; gi < gridN; gi++) {
+    for (let gj = 0; gj < gridN; gj++) {
+      const i00 = gi * (gridN+1) + gj;
+      const i10 = (gi+1) * (gridN+1) + gj;
+      const i01 = gi * (gridN+1) + gj + 1;
+      const i11 = (gi+1) * (gridN+1) + gj + 1;
+
+      const p = [gridPts[i00], gridPts[i10], gridPts[i11], gridPts[i01]];
+      const avgZ = (p[0].z + p[1].z + p[2].z + p[3].z) / 4;
+      const projected = p.map(pt => project(pt.nx, pt.ny, pt.nz));
+      const avgDepth = projected.reduce((s, pt) => s + pt.depth, 0) / 4;
+
+      cells.push({projected, avgZ, avgDepth});
+    }
+  }
+
+  cells.sort((a, b) => a.avgDepth - b.avgDepth);
+
+  for (const cell of cells) {
+    const t = (cell.avgZ - zMin) / (zMax - zMin);
+
+    let r, g, b;
+    if (showZones3D) {
+      // Terrain coloring
+      if (t > 0.7) { r = 100; g = 160; b = 60; }        // high = green
+      else if (t > 0.4) { r = 140; g = 190; b = 90; }    // mid = light green
+      else if (t > 0.15) { r = 180; g = 200; b = 120; }  // low-mid = yellow-green
+      else { r = 120; g = 180; b = 220; }                  // lowest = blue (pool zone)
+    } else {
+      r = Math.round(80 + t * 100);
+      g = Math.round(120 + t * 80);
+      b = Math.round(60 + (1-t) * 80);
+    }
+
+    // Lighting
+    const light = 0.7 + 0.3 * (cell.avgDepth + 0.5);
+    r = Math.min(255, Math.round(r * light));
+    g = Math.min(255, Math.round(g * light));
+    b = Math.min(255, Math.round(b * light));
+
+    ctx.beginPath();
+    ctx.moveTo(cell.projected[0].x, cell.projected[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(cell.projected[i].x, cell.projected[i].y);
+    ctx.closePath();
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(0,0,0,0.05)`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Labels
+  if (showLabels3D) {
+    const labels3d = [
+      {text:'House & Parking', nx:0.25, ny:0.15, nz:0.85},
+      {text:'Lawn Terraces', nx:0.5, ny:0.5, nz:0.6},
+      {text:'Pool + Konoba', nx:0.85, ny:0.85, nz:0.1},
+      {text:'Greenhouse', nx:0.7, ny:0.4, nz:0.35},
+    ];
+
+    for (const lbl of labels3d) {
+      const p = project(lbl.nx, lbl.ny, lbl.nz + 0.15);
+      ctx.font = 'bold 12px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      const w = ctx.measureText(lbl.text).width + 12;
+      ctx.fillRect(p.x - w/2, p.y - 12, w, 20);
+      ctx.strokeStyle = '#2d5016';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(p.x - w/2, p.y - 12, w, 20);
+      ctx.fillStyle = '#2d5016';
+      ctx.fillText(lbl.text, p.x, p.y + 3);
+    }
+  }
+
+  // Elevation legend
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'left';
+  const legendX = W - 140, legendY = 30;
+  const legendH = 120;
+  for (let i = 0; i < legendH; i++) {
+    const t = 1 - i / legendH;
+    const r = Math.round(80 + t * 100);
+    const g = Math.round(120 + t * 80);
+    const b = Math.round(60 + (1-t) * 80);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(legendX, legendY + i, 15, 1);
+  }
+  ctx.fillStyle = '#333';
+  ctx.fillText(`${zMax.toFixed(1)}m`, legendX + 20, legendY + 10);
+  ctx.fillText(`${zMin.toFixed(1)}m`, legendX + 20, legendY + legendH);
+  ctx.fillText('Elevation', legendX, legendY - 5);
+
+  // Drag instruction
+  ctx.fillStyle = '#999';
+  ctx.font = '12px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Click and drag to rotate', W/2, H - 15);
+}
+
+function resetView() {
+  rotX = 0.6; rotZ = 0.8;
+  render3D();
+}
+
+function toggleLabels() {
+  showLabels3D = !showLabels3D;
+  document.getElementById('btnLabels').classList.toggle('active');
+  render3D();
+}
+
+function toggleTerrain() {
+  showZones3D = !showZones3D;
+  document.getElementById('btnTerrain').classList.toggle('active');
+  render3D();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Vrt - Obitelj Galić</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{overflow:hidden;background:#000;font-family:system-ui,sans-serif}
+  #info{position:fixed;top:15px;left:15px;z-index:100;background:rgba(255,255,255,0.92);
+    border-radius:14px;padding:16px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.2);max-width:300px}
+  #info h2{font-size:1.1em;color:#2d5016;margin-bottom:6px}
+  #info p{font-size:0.85em;color:#666;line-height:1.5}
+  #info .c{margin-top:8px;font-size:0.78em;color:#999}
+  #info .c kbd{background:#eee;padding:1px 5px;border-radius:3px}
+  #vb{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:8px}
+  #vb button{padding:10px 18px;border:none;border-radius:10px;cursor:pointer;font-size:0.85em;
+    font-weight:600;background:rgba(255,255,255,0.9);color:#333;box-shadow:0 2px 10px rgba(0,0,0,0.15);transition:all 0.2s}
+  #vb button:hover{background:#4a7c23;color:#fff}
+  #vb button.a{background:#2d5016;color:#fff}
+  #lbl{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:90;pointer-events:none;
+    opacity:0;transition:opacity 0.4s;background:rgba(0,0,0,0.75);color:#fff;padding:14px 28px;
+    border-radius:12px;font-size:1.3em;font-weight:600}
+  #lbl.s{opacity:1}
+  #ld{position:fixed;inset:0;z-index:200;background:#1a3a0a;display:flex;align-items:center;
+    justify-content:center;flex-direction:column;color:#fff}
+  #ld h1{font-size:1.5em;margin-bottom:8px}
+  #ld p{opacity:0.7}
+</style>
+</head>
+<body>
+<div id="ld"><h1>Učitavanje 3D vrta...</h1><p>Priprema terena i objekata</p></div>
+<div id="info">
+  <h2>Dvorište obitelji Galić</h2>
+  <p>K.č. 917/2, Knešpolje, Široki Brijeg</p>
+  <p>Teren: 278.3 – 281.3 m n.v. (pad 3m)</p>
+  <div class="c">
+    <kbd>Klik + vuci</kbd> rotacija
+    <kbd>Scroll</kbd> zoom
+    <kbd>Desni klik + vuci</kbd> pomicanje
+  </div>
+</div>
+<div id="vb">
+  <button class="a" onclick="sv('pregled',event)">Pregled</button>
+  <button onclick="sv('parking',event)">Parking</button>
+  <button onclick="sv('terase',event)">Terase</button>
+  <button onclick="sv('bazen',event)">Bazen i konoba</button>
+  <button onclick="sv('plastenik',event)">Plastenik</button>
+  <button onclick="sv('setnja',event)">Šetnja</button>
+  <button onclick="hiResScreenshot()" style="background:#2196F3;color:#fff">📸 HD Screenshot</button>
+  <button onclick="toggleLang()" id="btnLang" style="background:#ff9800;color:#fff">🌐 English</button>
+</div>
+<div id="lbl"></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+// ═══════════════════════════════════════════════════════════════
+// TERRAIN - real world dimensions ~35x40m
+// Slope: NW high (281m) -> SE low (278m)
+// Layout (top-down, NW = top-left):
+//
+//   STREET (top edge)
+//   ─────────────────────────────────────
+//   │ 10m DRIVEWAY                      │
+//   │                                    │
+//   │  [PARKING 6 cars]  [GARAGE][HOUSE] │  ← ~281m
+//   │                                    │
+//   │  [HEDGE]  [TRAVNJAK 1]             │  ← ~280.5m
+//   │           ═══potporni zid═══       │
+//   │           [TRAVNJAK 2]  [PLASTENIK]│  ← ~280m
+//   │           ═══potporni zid═══       │
+//   │           [TRAVNJAK 3]             │  ← ~279.5m
+//   │           ═══potporni zid═══       │
+//   │     [KONOBA]    [BAZEN]            │  ← ~278.5m
+//   │                                    │
+//   ─────────────── BETONSKI ZID ────────
+//
+// ═══════════════════════════════════════════════════════════════
+
+const W = 20, D = 50; // 20m wide x 50m deep (confirmed by user)
+const HW = W/2, HD = D/2;
+
+// Elevation: steep terraced slope. Street (z=0) is HIGHEST (~281m), bottom (z=40) is LOWEST (~278m)
+// Terraces create visible flat platforms with drops between them
+function elev(x, z) {
+  const nt = z / D;
+  // Base slope
+  let h = 4.0 * (1.0 - nt);
+  // Terrace steps: flatten within each terrace zone, drop at walls
+  if (z < 20) h = 3.8;          // house/parking zone (flat, high)
+  else if (z < 21) h = 3.8 - (z-20)*1.0; // wall drop
+  else if (z < 29) h = 2.8;     // terrace 1 (flat)
+  else if (z < 30) h = 2.8 - (z-29)*0.8; // wall drop
+  else if (z < 38) h = 2.0;     // terrace 2 (flat)
+  else if (z < 39) h = 2.0 - (z-38)*0.6; // wall drop
+  else h = 1.4;                  // lowest zone (pool/konoba/workout)
+  // Gentle undulation
+  h += Math.sin(x*0.5)*0.04 + Math.cos(z*0.3)*0.03;
+  return Math.max(0, h);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// THREE.JS
+// ═══════════════════════════════════════════════════════════════
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 500);
+const ren = new THREE.WebGLRenderer({antialias:true});
+ren.setSize(innerWidth, innerHeight);
+ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+ren.shadowMap.enabled = true;
+ren.shadowMap.type = THREE.PCFSoftShadowMap;
+ren.toneMapping = THREE.ACESFilmicToneMapping;
+ren.toneMappingExposure = 1.1;
+document.body.appendChild(ren.domElement);
+
+const ctrl = new OrbitControls(cam, ren.domElement);
+ctrl.enableDamping = true;
+ctrl.dampingFactor = 0.08;
+ctrl.maxPolarAngle = Math.PI/2.05;
+ctrl.minDistance = 2;
+ctrl.maxDistance = 150;
+ctrl.zoomSpeed = 1.2;         // brže zumiranje
+ctrl.rotateSpeed = 0.6;       // glađa rotacija
+
+// Sky
+const skyG = new THREE.SphereGeometry(200,32,32);
+const skyM = new THREE.ShaderMaterial({side:THREE.BackSide,
+  vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec3 vP;void main(){
+    float t=normalize(vP).y;
+    vec3 sky=vec3(.4,.65,1.),hor=vec3(.78,.88,1.),gnd=vec3(.5,.6,.4);
+    vec3 c=t>0.?mix(hor,sky,pow(t,.45)):mix(hor,gnd,pow(-t,.3));
+    float cl=smoothstep(.12,.3,t)*(1.-smoothstep(.3,.65,t));
+    c=mix(c,vec3(1.),cl*.35);
+    gl_FragColor=vec4(c,1.);}`
+});
+scene.add(new THREE.Mesh(skyG,skyM));
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xc0d4e8, 0.5));
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.3);
+sun.position.set(20,25,-15);
+sun.castShadow = true;
+sun.shadow.camera.left=-25; sun.shadow.camera.right=25;
+sun.shadow.camera.top=25; sun.shadow.camera.bottom=-25;
+sun.shadow.mapSize.set(2048,2048);
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x87ceeb, 0x556b2f, 0.35));
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATED LAYOUT (from floor plan + user feedback)
+//
+// z=0   CESTA (ulica)
+// z=2   granica parcele
+// z=2-10  ASFALTIRANI PRILAZ (driveway) + 6 PARKING mjesta
+// z=10-12 ASFALTIRANI BLOK oko kuće
+// z=10-18 KUĆA (L-oblik, garaža prema cesti z=10)
+// z=18   kraj asfaltnog bloka
+// z=19   ═══ potporni zid 1 ═══
+// z=19-25 TRAVNJAK 1
+// z=25   ═══ potporni zid 2 ═══
+// z=25-31 TRAVNJAK 2 + PLASTENIK
+// z=31   ═══ potporni zid 3 ═══
+// z=31-38 BAZEN + KONOBA
+// z=39   BETONSKI ZID (granica)
+//
+// x=2  živa ograda (917/3)
+// x=33 betonski zid + penjačice
+// ═══════════════════════════════════════════════════════════════
+// TERRAIN MESH (with visible terracing)
+const tRes = 120;
+const tGeo = new THREE.PlaneGeometry(W, D, tRes, tRes);
+tGeo.rotateX(-Math.PI/2);
+const tv = tGeo.attributes.position;
+const tColors = new Float32Array(tv.count * 3);
+
+for (let i = 0; i < tv.count; i++) {
+  const x = tv.getX(i) + HW;
+  const z = tv.getZ(i) + HD;
+  const y = elev(x, z);
+  tv.setY(i, y);
+  const n = Math.sin(x*4)*0.02 + Math.cos(z*5)*0.015;
+  const t = y / 4.0;
+  tColors[i*3]   = 0.20 + t*0.15 + n;
+  tColors[i*3+1] = 0.48 + t*0.18 + n;
+  tColors[i*3+2] = 0.10 + n;
+}
+tGeo.setAttribute('color', new THREE.BufferAttribute(tColors, 3));
+tGeo.computeVertexNormals();
+const terrain = new THREE.Mesh(tGeo, new THREE.MeshLambertMaterial({vertexColors:true}));
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+function wp(x,z) { return new THREE.Vector3(x-HW, elev(x,z), z-HD); }
+function wpY(x,z,yOverride) { return new THREE.Vector3(x-HW, yOverride, z-HD); }
+
+function box(x,z,w,h,d,col,ry) {
+  const g = new THREE.BoxGeometry(w,h,d);
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({color:col}));
+  const p = wp(x,z);
+  m.position.set(p.x, p.y+h/2, p.z);
+  if(ry) m.rotation.y = ry;
+  m.castShadow=true; m.receiveShadow=true;
+  scene.add(m); return m;
+}
+
+function flat(x,z,w,d,col) {
+  const g = new THREE.PlaneGeometry(w,d); g.rotateX(-Math.PI/2);
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({color:col}));
+  const p = wp(x,z);
+  m.position.set(p.x, p.y+0.03, p.z);
+  m.receiveShadow=true; scene.add(m); return m;
+}
+
+function tree(x,z,h,r,col) {
+  const p = wp(x,z);
+  // Trunk
+  const tk = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.15,h*0.45,8),
+    new THREE.MeshLambertMaterial({color:0x7a5a2a}));
+  tk.position.set(p.x, p.y+h*0.22, p.z);
+  tk.castShadow=true; scene.add(tk);
+  // Crown
+  const cr = new THREE.Mesh(new THREE.SphereGeometry(r,10,8),
+    new THREE.MeshLambertMaterial({color:col||0x2d8a2d}));
+  cr.position.set(p.x, p.y+h*0.6, p.z);
+  cr.castShadow=true; scene.add(cr);
+}
+
+function conifer(x,z,h) {
+  const p = wp(x,z);
+  const tk = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.08,h*0.25,6),
+    new THREE.MeshLambertMaterial({color:0x5a3a1a}));
+  tk.position.set(p.x, p.y+h*0.12, p.z);
+  scene.add(tk);
+  const cn = new THREE.Mesh(new THREE.ConeGeometry(0.6,h*0.85,8),
+    new THREE.MeshLambertMaterial({color:0x1a5c1a}));
+  cn.position.set(p.x, p.y+h*0.5, p.z);
+  cn.castShadow=true; scene.add(cn);
+}
+
+function label(text, x, z, yOff) {
+  const c = document.createElement('canvas');
+  c.width=1024; c.height=256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle='rgba(255,255,255,0.92)';
+  ctx.beginPath(); ctx.roundRect(12,12,1000,232,20); ctx.fill();
+  ctx.shadowColor='rgba(0,0,0,0.15)'; ctx.shadowBlur=10;
+  ctx.strokeStyle='#2d5016'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.roundRect(12,12,1000,232,20); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#1a3a0a'; ctx.font='bold 80px system-ui';
+  ctx.textAlign='center'; ctx.fillText(text,512,155);
+  const tex = new THREE.CanvasTexture(c);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
+  const p = wp(x,z);
+  sp.position.set(p.x, p.y+(yOff||3.5), p.z);
+  sp.scale.set(5,1.25,1);
+  sp.userData = {text: text};
+  scene.add(sp); return sp;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LAYOUT - North=top (z=0, street), South=bottom (z=40, low)
+//
+//  z=0   CESTA (ulica)
+//  z=3   ---- granica parcele ----
+//  z=5   ASFALTIRANI PRILAZ
+//  z=8   [6x PARKING]     [GARAŽA] [KUĆA]
+//  z=13  ---- potporni zid 1 ----
+//  z=13-19  TRAVNJAK 1
+//  z=19  ---- potporni zid 2 ----
+//  z=19-25  TRAVNJAK 2     [PLASTENIK]
+//  z=25  ---- potporni zid 3 ----
+//  z=25-31  TRAVNJAK 3
+//  z=31  ---- potporni zid 4 ----
+//  z=32-38  [KONOBA]  [BAZEN]
+//  z=38  ---- betonski zid (granica) ----
+//
+//  x: 0=west(hedge917/3), 35=east
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// OBJECTS - All positioned based on floor plan + user feedback
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// LAYOUT: 20m wide × 50m deep
+// z=0 CESTA | z=2-12 PRILAZ (valovit) | z=12-19 KUĆA+GARAŽA+PARKING
+// Garaža otvara se BOČNO (prema x=20)
+// Parking ISPRED garaže (desna strana)
+// Bašta na LIJEVOJ strani kuće
+// z=21 PZ1 | z=21-30 TRAVNJAK1 | z=30 PZ2 | z=30-38 TRAVNJAK2
+// z=38 PZ3 | z=38-48 BAZEN+KONOBA+WORKOUT+KOKOŠINJAC
+// ═══════════════════════════════════════════════════════════════
+
+// --- STREET ---
+flat(HW, 0.5, W+15, 2, 0x333333);
+box(HW, 1.5, W+10, 0.15, 0.3, 0xbbbbbb);
+
+// --- CURVED DRIVEWAY (valovit prilaz od ceste do garaže, ~10m) ---
+const asphaltMat = new THREE.MeshLambertMaterial({color:0x3a3a3a});
+// Curved driveway segments (starts at street x=10, curves toward garage at x=16, z=14)
+const dPts=[[10,2],[10,4],[11,6],[12,8],[13,10],[14,12],[15.5,14]];
+for(let i=0;i<dPts.length-1;i++){
+  const[x1,z1]=dPts[i],[x2,z2]=dPts[i+1];
+  const len=Math.hypot(x2-x1,z2-z1),ang=Math.atan2(z2-z1,x2-x1);
+  const mx=(x1+x2)/2,mz=(z1+z2)/2,mp=wp(mx,mz);
+  const g=new THREE.BoxGeometry(len+0.3,0.08,3.5);
+  const m=new THREE.Mesh(g,asphaltMat);
+  m.position.set(mp.x,mp.y+0.05,mp.z);m.rotation.y=-ang;m.receiveShadow=true;scene.add(m);
+}
+
+// --- ASPHALT PAD (parking bliže cesti + prilaz do garaže) ---
+{const g=new THREE.PlaneGeometry(8,12);g.rotateX(-Math.PI/2);
+const m=new THREE.Mesh(g,asphaltMat);
+const p=wp(15,8);m.position.set(p.x,p.y+0.06,p.z);m.receiveShadow=true;scene.add(m);}
+
+// --- PARKING (6 cars, bliže cesti, ispred garaže) ---
+const carCol=[0x1a1a8a,0xcc2222,0xdddddd,0x222222,0x1a6a2a,0x8a5a1a];
+for(let r=0;r<2;r++) for(let c=0;c<3;c++){
+  const cx2=13+c*2.3, cz2=4+r*4;
+  const cp=wp(cx2,cz2);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.55,3.5),
+    new THREE.MeshLambertMaterial({color:carCol[r*3+c]}));
+  body.position.set(cp.x,cp.y+0.4,cp.z); body.castShadow=true; scene.add(body);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.35,1.8),
+    new THREE.MeshLambertMaterial({color:carCol[r*3+c]}));
+  roof.position.set(cp.x,cp.y+0.85,cp.z-0.1); roof.castShadow=true; scene.add(roof);
+}
+
+// --- HOUSE (L-shaped) ---
+// Kuća primaknuta lijevo: 3.6m od lijeve granice, 4m od desne
+// Lijevi rub kuće: x=3.6, desni rub garaže: x=16
+const hx=8.1, hz=15; // center of main house (3.6 + 9/2)
+const hp = wp(hx, hz);
+
+// Main section ~9x6m (living, kitchen, dining)
+box(8.1, 15, 9, 3.5, 6, 0xf5f0e6);
+// Extension ~6x3.5m (bedrooms, bathroom)
+box(8.1, 19, 6, 3.5, 3.5, 0xf5f0e6);
+
+// Roofs
+const roof1=new THREE.Mesh(new THREE.ConeGeometry(6.5,2,4),new THREE.MeshLambertMaterial({color:0xb35c44}));
+roof1.position.set(8.1-HW,hp.y+4.5,15-HD);roof1.rotation.y=Math.PI/4;roof1.castShadow=true;scene.add(roof1);
+const roof2=new THREE.Mesh(new THREE.ConeGeometry(4.5,1.5,4),new THREE.MeshLambertMaterial({color:0xb35c44}));
+roof2.position.set(8.1-HW,hp.y+4.3,19-HD);roof2.rotation.y=Math.PI/4;roof2.castShadow=true;scene.add(roof2);
+
+// GARAGE (attached RIGHT side, door opens to RIGHT toward x=20)
+// Garage 6.4m x 3.6m, right edge at x=16 (4m from boundary)
+box(14.2, 15, 3.6, 2.8, 6.4, 0xe8e0d0);
+// Garage door (opens RIGHT)
+{const gdp=wp(16,15);
+const gd=new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,4),
+  new THREE.MeshLambertMaterial({color:0x777777}));
+gd.position.set(gdp.x,gdp.y+1.2,gdp.z);scene.add(gd);}
+{const roof3=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.15,7),
+  new THREE.MeshLambertMaterial({color:0xa04c34}));
+roof3.position.set(14.2-HW,hp.y+3.0,15-HD);scene.add(roof3);}
+// Dimension labels on house
+// (labels added below)
+
+// Windows (front face, -z side)
+const winM=new THREE.MeshLambertMaterial({color:0x87ceeb,emissive:0x335577,emissiveIntensity:0.2});
+for(let i=-2;i<=1;i++){const w=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.06),winM);
+w.position.set(8.1+i*1.5-HW,hp.y+2.2,12.0-HD);scene.add(w);}
+{const dr=new THREE.Mesh(new THREE.BoxGeometry(0.9,2.1,0.06),
+new THREE.MeshLambertMaterial({color:0x6B4226}));
+dr.position.set(8.1-HW,hp.y+1.1,12.0-HD);scene.add(dr);}
+for(let i=-1;i<=1;i+=2){const w=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.06),winM);
+w.position.set(8.1+i*1.2-HW,hp.y+2.2,20.8-HD);scene.add(w);}
+// Terrace in front
+flat(7, 11.5, 8, 1.5, 0xd4c4a8);
+
+// --- RETAINING WALLS (kameni potporni zidovi) ---
+function retWall(z, xFrom, xTo, h) {
+  const len = xTo-xFrom, midX = (xFrom+xTo)/2;
+  const yTop = elev(midX, z-0.5); // elevation above wall
+  const yBot = elev(midX, z+0.5); // elevation below wall
+  const wallH = h || (yTop - yBot + 0.3);
+  const p = wp(midX, z);
+  // Stone wall face
+  const wl = new THREE.Mesh(new THREE.BoxGeometry(len, wallH, 0.5),
+    new THREE.MeshLambertMaterial({color:0x8a7a64}));
+  wl.position.set(p.x, yBot + wallH/2, p.z);
+  wl.castShadow=true; wl.receiveShadow=true; scene.add(wl);
+  // Cap stones
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.7),
+    new THREE.MeshLambertMaterial({color:0xa89878}));
+  cap.position.set(p.x, yBot + wallH + 0.06, p.z);
+  scene.add(cap);
+}
+
+retWall(21, 3, 18, 1.2);
+retWall(30, 3, 18, 0.9);
+retWall(38, 3, 18, 0.8);
+
+// --- LED RASVJETA na potpornim zidovima (svako 5m) ---
+const ledMat = new THREE.MeshBasicMaterial({color:0xffffcc, emissive:0xffffaa});
+const ledGlow = new THREE.MeshBasicMaterial({color:0xffeeaa});
+for (const wz of [21, 30, 38]) {
+  const wallH = wz===21 ? 1.2 : wz===30 ? 0.9 : 0.8;
+  const yBase = elev(10, wz+0.5);
+  for (let x = 5; x <= 17; x += 5) {
+    // LED fixture
+    const led = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.08,0.15), ledMat);
+    led.position.set(x-HW, yBase+wallH*0.5, wz-HD+0.3);
+    scene.add(led);
+    // Glow sphere
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,6),
+      new THREE.MeshBasicMaterial({color:0xffffdd,transparent:true,opacity:0.6}));
+    glow.position.set(x-HW, yBase+wallH*0.5, wz-HD+0.35);
+    scene.add(glow);
+    // Point light (subtle warm glow)
+    const pl = new THREE.PointLight(0xffddaa, 0.3, 3);
+    pl.position.set(x-HW, yBase+wallH*0.5+0.1, wz-HD+0.4);
+    scene.add(pl);
+  }
+}
+
+// --- LEŽALJKE (sun loungers near pool, 3 komada) ---
+// Pool is at x=14, z=43
+for (let i=0; i<3; i++) {
+  const lx=14+5.5, lz=43-1.5+i*2.2;
+  const lp3=wp(lx,lz);
+  // Lounger frame
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.1,2),
+    new THREE.MeshLambertMaterial({color:0xf5e8c8}));
+  frame.position.set(lp3.x,lp3.y+0.3,lp3.z);scene.add(frame);
+  // Legs
+  for(let dx of [-0.25,0.25]) for(let dz of [-0.7,0.7]) {
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.25,4),
+      new THREE.MeshLambertMaterial({color:0xaaaaaa}));
+    leg.position.set(lp3.x+dx,lp3.y+0.12,lp3.z+dz);scene.add(leg);
+  }
+  // Back rest (raised)
+  const back=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.08,0.6),
+    new THREE.MeshLambertMaterial({color:0xf5e8c8}));
+  back.position.set(lp3.x,lp3.y+0.45,lp3.z-0.7);
+  back.rotation.x=-0.5;scene.add(back);
+}
+
+// --- SJEDENJE NA TERASI ispred kuće ---
+// Table
+{const tp=wp(6,11);
+const tbl2=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.05,16),
+  new THREE.MeshLambertMaterial({color:0x8B6914}));
+tbl2.position.set(tp.x,tp.y+0.7,tp.z);scene.add(tbl2);
+const tleg=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.65,6),
+  new THREE.MeshLambertMaterial({color:0x6a4a1a}));
+tleg.position.set(tp.x,tp.y+0.35,tp.z);scene.add(tleg);
+// 4 chairs around table
+for(let a=0;a<4;a++){
+  const angle=a*Math.PI/2;
+  const ch=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4),
+    new THREE.MeshLambertMaterial({color:0x8B4513}));
+  ch.position.set(tp.x+Math.cos(angle)*1,tp.y+0.25,tp.z+Math.sin(angle)*1);
+  scene.add(ch);
+}}
+
+// --- TERRACED LAWNS ---
+for (const [zc, shade] of [[26, 0x4aaa3a], [34, 0x3a9a2a]]) {
+  const lp2 = wp(10, zc);
+  const lg = new THREE.PlaneGeometry(14, 5); lg.rotateX(-Math.PI/2);
+  const lm = new THREE.Mesh(lg, new THREE.MeshLambertMaterial({color:shade, transparent:true, opacity:0.15}));
+  lm.position.set(lp2.x, lp2.y+0.03, lp2.z); scene.add(lm);
+}
+
+// --- STONE PATHWAY (kamena staza) - VERY VISIBLE ---
+function stonePath(pts, w) {
+  // Light beige stone with dark borders
+  const pathCol = 0xddd0b8;
+  const borderCol = 0x998866;
+  for (let i = 0; i < pts.length-1; i++) {
+    const [x1,z1] = pts[i], [x2,z2] = pts[i+1];
+    const len = Math.hypot(x2-x1,z2-z1);
+    const ang = Math.atan2(z2-z1,x2-x1);
+    const mx=(x1+x2)/2, mz=(z1+z2)/2;
+    const mp = wp(mx, mz);
+    // Main path surface (raised)
+    const pg = new THREE.BoxGeometry(len+0.1, 0.12, w);
+    const pm = new THREE.Mesh(pg, new THREE.MeshLambertMaterial({color:pathCol}));
+    pm.position.set(mp.x, mp.y+0.08, mp.z);
+    pm.rotation.y = -ang;
+    pm.receiveShadow=true; pm.castShadow=true; scene.add(pm);
+    // Border stones
+    for (let side of [-1,1]) {
+      const bg = new THREE.BoxGeometry(len+0.1, 0.15, 0.12);
+      const bm = new THREE.Mesh(bg, new THREE.MeshLambertMaterial({color:borderCol}));
+      bm.position.set(mp.x + Math.sin(-ang)*side*w/2, mp.y+0.1, mp.z + Math.cos(-ang)*side*w/2);
+      bm.rotation.y = -ang;
+      scene.add(bm);
+    }
+    // Stone pattern lines across path
+    const nStones = Math.floor(len / 0.6);
+    for (let s = 0; s < nStones; s++) {
+      const t = (s+0.5)/nStones;
+      const sx = x1 + t*(x2-x1), sz = z1 + t*(z2-z1);
+      const sp = wp(sx, sz);
+      const sg = new THREE.BoxGeometry(0.04, 0.14, w*0.9);
+      const sm = new THREE.Mesh(sg, new THREE.MeshLambertMaterial({color:0xbbaa88}));
+      sm.position.set(sp.x, sp.y+0.1, sp.z);
+      sm.rotation.y = -ang;
+      scene.add(sm);
+    }
+  }
+}
+
+// Main walkway: house → terraces → pool area (branching!)
+stonePath([[10,20],[10,21],[10,25],[10,30],[10,34],[10,38],[10,42]], 1.5);
+// Branch to konoba
+stonePath([[10,42],[7,43],[5,44]], 1.0);
+// Branch to pool
+stonePath([[10,42],[14,43],[16,44]], 1.0);
+// Branch to greenhouse
+stonePath([[10,30],[14,31],[16,32]], 1.0);
+// Branch to workout
+stonePath([[10,34],[14,34]], 1.0);
+// Branch to bašta/kokošinjac
+stonePath([[10,30],[6,30],[4,30]], 1.0);
+// Path from house front to driveway
+stonePath([[8,12],[10,10],[12,8]], 1.2);
+
+// Steps at retaining walls
+for (const wz of [21, 30, 38]) {
+  for (let s = 0; s < 3; s++) {
+    const stepX = 10 - s*0.3;
+    const stepY = elev(stepX, wz-0.5) - s * 0.35;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(2, 0.15, 0.4),
+      new THREE.MeshLambertMaterial({color:0xc8b896}));
+    step.position.set(stepX-HW, stepY, wz-HD);
+    step.castShadow=true; scene.add(step);
+  }
+}
+
+// Branch to greenhouse
+stonePath([[10, 27], [14, 27.5], [16, 28]], 1.0);
+// Path between konoba and pool
+stonePath([[7, 34], [10, 34.5], [13, 34]], 1.0);
+// Path from house to asphalt
+stonePath([[10, 16], [10, 12]], 1.2);
+
+// --- PANELNA OGRADA (zelena, na vrhu zidova) ---
+const fenceGreen = 0x2a6e2a;
+const fencePostMat = new THREE.MeshLambertMaterial({color:0x1a5a1a});
+const fencePanelMat = new THREE.MeshLambertMaterial({color:fenceGreen, transparent:true, opacity:0.4, side:THREE.DoubleSide});
+const fenceWireMat = new THREE.MeshLambertMaterial({color:fenceGreen});
+
+function panelFence(x1,z1,x2,z2,wallTopY) {
+  const len=Math.hypot(x2-x1,z2-z1);
+  const ang=Math.atan2(z2-z1,x2-x1);
+  const mx=(x1+x2)/2, mz=(z1+z2)/2;
+  const baseY = wallTopY !== undefined ? wallTopY : elev(mx,mz)+1.8;
+  const fenceH = 1.5;
+  // Panel (semi-transparent green mesh)
+  const panel=new THREE.Mesh(new THREE.PlaneGeometry(len,fenceH),fencePanelMat);
+  panel.position.set(mx-HW, baseY+fenceH/2, mz-HD);
+  panel.rotation.y=-ang;
+  scene.add(panel);
+  // Horizontal wires (3 lines)
+  for(let h=0.2;h<fenceH;h+=0.5){
+    const wire=new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.01,len,4),fenceWireMat);
+    wire.position.set(mx-HW, baseY+h, mz-HD);
+    wire.rotation.z=Math.PI/2; wire.rotation.y=ang;
+    scene.add(wire);
+  }
+  // Vertical wires
+  const nVert=Math.floor(len/0.15);
+  for(let i=0;i<nVert;i++){
+    const t=(i+0.5)/nVert;
+    const vx=x1+t*(x2-x1), vz=z1+t*(z2-z1);
+    const vert=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,fenceH,4),fenceWireMat);
+    vert.position.set(vx-HW, baseY+fenceH/2, vz-HD);
+    scene.add(vert);
+  }
+  // Posts every 2.5m
+  const nPosts=Math.max(2,Math.floor(len/2.5)+1);
+  for(let i=0;i<nPosts;i++){
+    const t=i/(nPosts-1);
+    const px2=x1+t*(x2-x1), pz2=z1+t*(z2-z1);
+    // Square post
+    const post=new THREE.Mesh(new THREE.BoxGeometry(0.06,fenceH+0.15,0.06),fencePostMat);
+    post.position.set(px2-HW, baseY+fenceH/2, pz2-HD);
+    post.castShadow=true;
+    scene.add(post);
+    // Post cap
+    const cap2=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.05,0.1),fencePostMat);
+    cap2.position.set(px2-HW, baseY+fenceH+0.08, pz2-HD);
+    scene.add(cap2);
+  }
+}
+
+// --- BETONSKI ZID - ide po 3 strane (desno, dolje/iza, lijevo) iz situacije ---
+// EAST wall already added below (x≈19.5, z=4 to z=48)
+// SOUTH/REAR wall (z≈48, po cijeloj širini)
+for(let x=2;x<19;x+=2.5){
+  const p=wp(x,48);
+  const cw=new THREE.Mesh(new THREE.BoxGeometry(2.5,2.2,0.4),new THREE.MeshLambertMaterial({color:0xaaaaaa}));
+  cw.position.set(p.x,p.y+0.6,p.z);cw.castShadow=true;cw.receiveShadow=true;scene.add(cw);
+  // Climbing plants
+  for(let j=0;j<4;j++){
+    const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.22+Math.random()*0.12,6,5),
+      new THREE.MeshLambertMaterial({color:new THREE.Color(0.1+Math.random()*0.1,0.4+Math.random()*0.2,0.08)}));
+    leaf.position.set(p.x-0.8+Math.random()*1.6,p.y+0.2+j*0.4,p.z);scene.add(leaf);
+  }
+}
+// WEST/LEFT wall (x≈1, from z=21 down to z=48)
+for(let z=22;z<48;z+=2.5){
+  const p=wp(0.5,z);
+  const cw=new THREE.Mesh(new THREE.BoxGeometry(0.35,2.2,2.5),new THREE.MeshLambertMaterial({color:0xaaaaaa}));
+  cw.position.set(p.x,p.y+0.6,p.z);cw.castShadow=true;cw.receiveShadow=true;scene.add(cw);
+  for(let j=0;j<4;j++){
+    const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.2+Math.random()*0.1,6,5),
+      new THREE.MeshLambertMaterial({color:new THREE.Color(0.1+Math.random()*0.1,0.4+Math.random()*0.2,0.08)}));
+    leaf.position.set(p.x+0.15,p.y+0.2+j*0.4,p.z-0.8+Math.random()*1.6);scene.add(leaf);
+  }
+}
+
+// Panelna ograda NA VRHU zidova (sve 3 strane)
+// East fence (x=19.5, z=4 to z=48)
+for(let z=4;z<47;z+=8) panelFence(19.5,z,19.5,z+8, elev(19.5,z+4)+1.8);
+// South fence (z=48, x=1 to x=19)
+for(let x=1;x<18;x+=8) panelFence(x,48,x+8,48, elev(x+4,48)+1.8);
+// West fence (x=0.5, z=22 to z=48)
+for(let z=22;z<47;z+=8) panelFence(0.5,z,0.5,z+8, elev(0.5,z+4)+1.8);
+
+// Asphalt around house/garage area (between house and first retaining wall)
+{const g=new THREE.PlaneGeometry(14,3);g.rotateX(-Math.PI/2);
+const m=new THREE.Mesh(g,asphaltMat);
+const p=wp(10,19.5);m.position.set(p.x,p.y+0.06,p.z);m.receiveShadow=true;scene.add(m);}
+
+// --- KUČICA ZA PSA (dog house, near house) ---
+{const dh=wp(4,18);
+box(4,18,1.2,1,1.2,0x8B6914); // dog house body
+const dhRoof=new THREE.Mesh(new THREE.ConeGeometry(1,0.6,4),new THREE.MeshLambertMaterial({color:0xa04c34}));
+dhRoof.position.set(dh.x,dh.y+1.3,dh.z);dhRoof.rotation.y=Math.PI/4;scene.add(dhRoof);
+const dhDoor=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.6,0.06),new THREE.MeshLambertMaterial({color:0x333333}));
+dhDoor.position.set(dh.x,dh.y+0.35,dh.z-0.61);scene.add(dhDoor);}
+
+// --- SWIMMING POOL ---
+const px=14, pz=43;
+const pp = wp(px, pz);
+// Pool deck (stone)
+flat(px, pz, 11, 7, 0xd4c4a8);
+// Pool basin
+{const poolB = new THREE.Mesh(new THREE.BoxGeometry(8,1.5,4),
+  new THREE.MeshLambertMaterial({color:0x1a6b9a}));
+poolB.position.set(pp.x, pp.y-0.35, pp.z); scene.add(poolB);}
+// Water surface
+const waterG = new THREE.PlaneGeometry(7.5,3.5); waterG.rotateX(-Math.PI/2);
+const waterMat = new THREE.MeshPhongMaterial({color:0x40c8e0, transparent:true, opacity:0.72, specular:0xffffff, shininess:120});
+const water = new THREE.Mesh(waterG, waterMat);
+water.position.set(pp.x, pp.y+0.35, pp.z); scene.add(water);
+// Pool edge tiles
+for (let side of [[-4.1,0,0.3,4.2],[4.1,0,0.3,4.2],[0,-2.1,8.5,0.3],[0,2.1,8.5,0.3]]) {
+  const tile = new THREE.Mesh(new THREE.BoxGeometry(side[2],0.15,side[3]),
+    new THREE.MeshLambertMaterial({color:0xeeeeee}));
+  tile.position.set(pp.x+side[0], pp.y+0.42, pp.z+side[1]); scene.add(tile);
+}
+// Ladder
+for (let i of [-0.15,0.15]) {
+  const r = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1,6),
+    new THREE.MeshLambertMaterial({color:0xc0c0c0}));
+  r.position.set(pp.x-3.5+i, pp.y+0.8, pp.z-1.2); scene.add(r);
+}
+// Sun loungers
+for (let i = 0; i < 3; i++) {
+  const lg = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.12,1.8),
+    new THREE.MeshLambertMaterial({color:0xf5e8c8}));
+  const lgp = wp(px+5.5, pz-1.5+i*2);
+  lg.position.set(lgp.x, lgp.y+0.2, lgp.z); scene.add(lg);
+}
+
+// --- KONOBA ---
+const kx=6, kz=43;
+const kp = wp(kx, kz);
+box(kx, kz, 6, 3, 5, 0xd4a574);
+// Pergola
+{const pr = new THREE.Mesh(new THREE.BoxGeometry(7,0.12,6),
+  new THREE.MeshLambertMaterial({color:0x8B6914}));
+pr.position.set(kp.x, kp.y+3.3, kp.z); pr.castShadow=true; scene.add(pr);}
+for (let dx of [-3,3]) for (let dz of [-2.5,2.5]) {
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,3.3,6),
+    new THREE.MeshLambertMaterial({color:0x6B4226}));
+  post.position.set(kp.x+dx, kp.y+1.65, kp.z+dz); scene.add(post);
+}
+for (let dx=-2.5;dx<=2.5;dx+=1) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,6),
+    new THREE.MeshLambertMaterial({color:0x6B4226}));
+  b.position.set(kp.x+dx, kp.y+3.2, kp.z); scene.add(b);
+}
+box(kx+2, kz+1.5, 1, 1, 0.6, 0x444444); // grill
+{const tbl = new THREE.Mesh(new THREE.BoxGeometry(2,0.06,1.2),
+  new THREE.MeshLambertMaterial({color:0x8B6914}));
+tbl.position.set(kp.x-0.5, kp.y+0.75, kp.z); scene.add(tbl);}
+
+// --- GREENHOUSE (PLASTENIK) ---
+const gx=16, gz=34;
+const gp = wp(gx, gz);
+flat(gx, gz, 6, 3.5, 0x8a8a7a);
+{const ghCyl = new THREE.CylinderGeometry(1.7,1.7,6,20,1,false,0,Math.PI);
+const ghMat2 = new THREE.MeshPhongMaterial({color:0xffffff,transparent:true,opacity:0.3,specular:0xffffff,shininess:80,side:THREE.DoubleSide});
+const gh2 = new THREE.Mesh(ghCyl, ghMat2);
+gh2.position.set(gp.x, gp.y+0.05, gp.z);
+gh2.rotation.z=Math.PI/2; gh2.rotation.y=Math.PI/2; scene.add(gh2);}
+for (let d=-2.5;d<=2.5;d+=1) {
+  const rib = new THREE.Mesh(new THREE.TorusGeometry(1.7,0.025,6,20,Math.PI),
+    new THREE.MeshLambertMaterial({color:0x999999}));
+  rib.position.set(gp.x+d, gp.y+0.05, gp.z);
+  rib.rotation.y=Math.PI/2; scene.add(rib);
+}
+for (let i=0;i<12;i++) {
+  const px2=gx-2+(i%4)*1.5, pz2=gz-0.8+Math.floor(i/4)*0.8;
+  const pl = new THREE.Mesh(new THREE.SphereGeometry(0.2,6,5),
+    new THREE.MeshLambertMaterial({color:i%3===0?0xff4444:0x228B22}));
+  const pp2=wp(px2,pz2); pl.position.set(pp2.x,pp2.y+0.3,pp2.z); scene.add(pl);
+}
+
+// --- CONCRETE WALL + CLIMBING PLANTS (east boundary, x≈19.5) ---
+for (let z=4;z<48;z+=2.5) {
+  const p=wp(19.5,z);
+  const cw = new THREE.Mesh(new THREE.BoxGeometry(0.35,2.2,2.5),
+    new THREE.MeshLambertMaterial({color:0xaaaaaa}));
+  cw.position.set(p.x, p.y+0.6, p.z);
+  cw.castShadow=true; cw.receiveShadow=true; scene.add(cw);
+  for (let j=0;j<5;j++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.22+Math.random()*0.12,6,5),
+      new THREE.MeshLambertMaterial({color:new THREE.Color(0.1+Math.random()*0.1, 0.4+Math.random()*0.2, 0.08)}));
+    leaf.position.set(p.x-0.15, p.y+0.2+j*0.4, p.z-0.8+Math.random()*1.6); scene.add(leaf);
+  }
+}
+
+// --- LIVE HEDGE toward 917/3 (west, x≈2) ---
+for (let z=3;z<48;z+=1) {
+  const p=wp(2,z);
+  const bush = new THREE.Mesh(new THREE.SphereGeometry(0.5+Math.random()*0.12,8,6),
+    new THREE.MeshLambertMaterial({color:0x1a5c1a}));
+  bush.position.set(p.x, p.y+0.8, p.z);
+  bush.scale.y=2.2; bush.castShadow=true; scene.add(bush);
+}
+
+// --- DECORATIVE TREES ---
+tree(4, 24, 3.5, 1.2, 0x2d8a2d);
+tree(5, 30, 3, 1, 0x4aaa4a);
+tree(17, 38, 2.5, 1, 0x2d8a2d);
+tree(12, 45, 3, 1.2, 0xffb6c1); // pink flowering near pool
+tree(4, 45, 2.5, 1, 0x4aaa4a);
+tree(4, 14, 3, 1.2, 0x2d8a2d);
+tree(17, 28, 2, 0.8, 0x3a9a3a);
+// Conifers along hedge
+for (let z=4;z<46;z+=3) conifer(1.5, z, 2.5+Math.random()*0.5);
+
+// Flowers near pool
+const fCol = [0xff6b6b,0xffd93d,0xff8fab,0xc77dff,0xff7b00,0xff69b4];
+for (let i=0;i<15;i++) {
+  const fx=px-4+Math.random()*2, fz2=pz-2+Math.random()*4;
+  const fp=wp(fx,fz2);
+  const fl = new THREE.Mesh(new THREE.SphereGeometry(0.12+Math.random()*0.08,6,5),
+    new THREE.MeshLambertMaterial({color:fCol[i%fCol.length]}));
+  fl.position.set(fp.x, fp.y+0.18, fp.z); scene.add(fl);
+}
+
+// Lavender along path
+for (let i=0;i<8;i++) {
+  const lx2=11, lz2=18+i*1.8;
+  const lp2=wp(lx2, lz2);
+  const lav = new THREE.Mesh(new THREE.SphereGeometry(0.22,6,5),
+    new THREE.MeshLambertMaterial({color:0x9370DB}));
+  lav.position.set(lp2.x, lp2.y+0.18, lp2.z); scene.add(lav);
+}
+
+// --- BAŠTA (mali povrtnjak) ---
+const bx=4, bz=36;
+flat(bx, bz, 4, 3, 0x5a3a1a); // garden bed soil
+// Raised bed borders
+box(bx, bz, 4.2, 0.3, 0.15, 0x6a4a2a); // north border
+box(bx, bz, 0.15, 0.3, 3, 0x6a4a2a); // side borders
+// Veggie rows
+for (let r=0;r<3;r++) {
+  for (let c=0;c<5;c++) {
+    const vp=wp(bx-1.5+c*0.8, bz-1+r*1);
+    const veg = new THREE.Mesh(new THREE.SphereGeometry(0.15,6,5),
+      new THREE.MeshLambertMaterial({color: r===0 ? 0xff3333 : r===1 ? 0x228B22 : 0x44aa00}));
+    veg.position.set(vp.x, vp.y+0.2, vp.z); scene.add(veg);
+  }
+}
+
+// --- STREET WORKOUT PARK ---
+const wx=16, wz=26;
+const wwp = wp(wx, wz);
+// Pull-up bar
+for (let dx of [-1, 1]) {
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,2.5,8),
+    new THREE.MeshLambertMaterial({color:0x555555}));
+  pole.position.set(wwp.x+dx, wwp.y+1.25, wwp.z);
+  pole.castShadow=true; scene.add(pole);
+}
+{const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,2,8),
+  new THREE.MeshLambertMaterial({color:0x777777}));
+bar.position.set(wwp.x, wwp.y+2.5, wwp.z);
+bar.rotation.z=Math.PI/2; scene.add(bar);}
+// Parallel bars
+for (let dx of [-0.4, 0.4]) {
+  const pb = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,2,6),
+    new THREE.MeshLambertMaterial({color:0x555555}));
+  pb.position.set(wwp.x+dx, wwp.y+0.55, wwp.z+2);
+  scene.add(pb);
+  for (let dz of [-0.8, 0.8]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.1,6),
+      new THREE.MeshLambertMaterial({color:0x555555}));
+    leg.position.set(wwp.x+dx, wwp.y+0.55, wwp.z+2+dz);
+    scene.add(leg);
+  }
+}
+// Rubber mat
+flat(wx, wz+1, 4, 4, 0x333333);
+
+// --- KOKOŠINJAC (chicken coop) ---
+const ckx=4, ckz=33;
+const ckp = wp(ckx, ckz);
+// Little house
+box(ckx, ckz, 2, 1.5, 1.5, 0x8B6914);
+// Roof
+{const cr = new THREE.Mesh(new THREE.BoxGeometry(2.4,0.08,2),
+  new THREE.MeshLambertMaterial({color:0xa04c34}));
+cr.position.set(ckp.x, ckp.y+1.6, ckp.z); scene.add(cr);}
+// Wire fence enclosure
+for (let side of [[1.5,0],[0,1.5],[-1.5,0],[0,-1.5]]) {
+  const fence = new THREE.Mesh(new THREE.BoxGeometry(
+    side[0]===0 ? 0.05 : 3, 1, side[1]===0 ? 0.05 : 3),
+    new THREE.MeshLambertMaterial({color:0x888888, transparent:true, opacity:0.3}));
+  fence.position.set(ckp.x+side[0], ckp.y+0.5, ckp.z+side[1]);
+  scene.add(fence);
+}
+
+// --- LABELS (Croatian) ---
+const lbls = [];
+lbls.push(label('Kuća (9×6m)', 8.1, 15, 6));
+lbls.push(label('Garaža (6.4×3.6m)', 14.2, 15, 4.5));
+lbls.push(label('← 3.6m →', 1.8, 15, 1.5));
+lbls.push(label('← 4m →', 18, 15, 1.5));
+lbls.push(label('Parking 6 mjesta', 15, 6, 3));
+lbls.push(label('Prilaz ~10m', 11, 5, 2.5));
+lbls.push(label('Travnjak 1', 10, 26, 2.5));
+lbls.push(label('Travnjak 2', 10, 34, 2.5));
+lbls.push(label('Bazen 8×4m', px, pz, 3));
+lbls.push(label('Konoba 6×5m', kx, kz, 4.5));
+lbls.push(label('Plastenik 6×3.5m', gx, gz, 3.5));
+lbls.push(label('Živa ograda', 1.5, 30, 3));
+lbls.push(label('Betonski zid + penjačice', 19.5, 30, 3.5));
+lbls.push(label('Kamena staza', 10.5, 28, 1.5));
+lbls.push(label('Bašta 4×3m', bx, bz, 2));
+lbls.push(label('Workout park', wx, wz+1, 3.5));
+lbls.push(label('Kokošinjac', ckx, ckz, 2.5));
+lbls.push(label('Kučica za psa', 4, 18, 2.5));
+lbls.push(label('Parcela 20×50m', 10, 1, 2.5));
+lbls.push(label('⬆ GLAVNA ULICA ⬆', 10, -1, 1.5));
+
+// ═══════════════════════════════════════════════════════════════
+// CAMERA VIEWS
+// ═══════════════════════════════════════════════════════════════
+const views = {
+  pregled: {pos:[22,30,-20], tgt:[0, 1.5, 3]},
+  parking: {pos:[14-HW, 6, 5-HD], tgt:[12-HW, 3.5, 14-HD]},
+  terase:  {pos:[0-HW, 8, 28-HD], tgt:[10-HW, 2, 30-HD]},
+  bazen:   {pos:[px-HW-6, 4, pz-HD+6], tgt:[px-HW, 1, pz-HD]},
+  plastenik:{pos:[gx-HW+5, 4, gz-HD-5], tgt:[gx-HW, 2, gz-HD]},
+  setnja:  {pos:[8-HW, 5.5, 11-HD], tgt:[10-HW, 1, 43-HD]},
+};
+
+const viewLabels = {
+  pregled: 'Pregled cijelog dvorišta',
+  parking: 'Parking za 6 vozila + 10m prilaz',
+  terase:  'Terasirani travnjaci s potpornim zidovima',
+  bazen:   'Bazen i konoba',
+  plastenik:'Plastenik',
+  setnja:  'Pogled s ulaznih vrata',
+};
+
+window.sv = function(name, e) {
+  const v = views[name]; if(!v) return;
+  document.querySelectorAll('#vb button').forEach(b=>b.classList.remove('a'));
+  if(e && e.target) e.target.classList.add('a');
+  const s0=cam.position.clone(), s1=ctrl.target.clone();
+  const e0=new THREE.Vector3(...v.pos), e1=new THREE.Vector3(...v.tgt);
+  const t0=Date.now();
+  (function anim(){
+    const t=Math.min(1,(Date.now()-t0)/1200);
+    const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    cam.position.lerpVectors(s0,e0,e);
+    ctrl.target.lerpVectors(s1,e1,e);
+    ctrl.update();
+    if(t<1) requestAnimationFrame(anim);
+  })();
+  const el=document.getElementById('lbl');
+  el.textContent=viewLabels[name]||'';
+  el.classList.add('s');
+  setTimeout(()=>el.classList.remove('s'),2500);
+};
+
+// Initial
+cam.position.set(22, 30, -20);
+ctrl.target.set(0, 1.5, 3);
+ctrl.update();
+
+// ═══════════════════════════════════════════════════════════════
+// ANIMATION
+// ═══════════════════════════════════════════════════════════════
+let t=0;
+function animate() {
+  requestAnimationFrame(animate);
+  t+=0.01;
+  water.position.y = pp.y + 0.35 + Math.sin(t*2)*0.015;
+  waterMat.opacity = 0.65 + Math.sin(t*3)*0.05;
+  ctrl.update();
+  ren.render(scene, cam);
+}
+
+document.getElementById('ld').style.display='none';
+animate();
+
+addEventListener('resize',()=>{
+  cam.aspect=innerWidth/innerHeight;
+  cam.updateProjectionMatrix();
+  ren.setSize(innerWidth,innerHeight);
+});
+
+// HD Screenshot - zooms out to show EVERYTHING, 4x res
+window.hiResScreenshot = function() {
+  const scale = 4;
+  const w = innerWidth * scale;
+  const h = innerHeight * scale;
+
+  // Save current camera
+  const origPos = cam.position.clone();
+  const origTgt = ctrl.target.clone();
+  const origFov = cam.fov;
+
+  // Move camera to bird's eye showing entire plot + parking + street
+  cam.position.set(25, 40, -25);
+  ctrl.target.set(0, 0, 3);
+  cam.fov = 55;
+  cam.updateProjectionMatrix();
+  ctrl.update();
+
+  // Render at high res
+  ren.setSize(w, h);
+  ren.setPixelRatio(1);
+  cam.aspect = w / h;
+  cam.updateProjectionMatrix();
+  ren.render(scene, cam);
+
+  // Save
+  const link = document.createElement('a');
+  link.download = 'vrt_galic_HD.png';
+  link.href = ren.domElement.toDataURL('image/png');
+  link.click();
+
+  // Restore everything
+  cam.position.copy(origPos);
+  ctrl.target.copy(origTgt);
+  cam.fov = origFov;
+  ren.setSize(innerWidth, innerHeight);
+  ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+  cam.aspect = innerWidth / innerHeight;
+  cam.updateProjectionMatrix();
+  ctrl.update();
+
+  const el = document.getElementById('lbl');
+  el.textContent = 'Screenshot spremljen! (4K, cijela parcela)';
+  el.classList.add('s');
+  setTimeout(() => el.classList.remove('s'), 2500);
+};
+
+// Language toggle (HR ↔ EN)
+const translations = {
+  'Kuća (9×6m)':'House (9×6m)', 'Garaža (6.4×3.6m)':'Garage (6.4×3.6m)',
+  'Parking 6 mjesta':'Parking 6 spots', 'Prilaz ~10m':'Driveway ~10m',
+  'Travnjak 1':'Lawn Terrace 1', 'Travnjak 2':'Lawn Terrace 2',
+  'Bazen 8×4m':'Pool 8×4m', 'Konoba 6×5m':'Outdoor Kitchen 6×5m',
+  'Plastenik 6×3.5m':'Greenhouse 6×3.5m', 'Živa ograda':'Live Hedge',
+  'Betonski zid + penjačice':'Concrete Wall + Climbing Plants',
+  'Kamena staza':'Stone Path', 'Bašta 4×3m':'Garden 4×3m',
+  'Workout park':'Workout Park', 'Kokošinjac':'Chicken Coop',
+  'Kučica za psa':'Dog House', 'Parcela 20×50m':'Plot 20×50m',
+  '⬆ GLAVNA ULICA ⬆':'⬆ MAIN ROAD ⬆',
+  '← 3.6m →':'← 3.6m →', '← 4m →':'← 4m →',
+};
+let isHR = true;
+window.toggleLang = function() {
+  isHR = !isHR;
+  document.getElementById('btnLang').textContent = isHR ? '🌐 English' : '🌐 Hrvatski';
+  // Update info panel
+  const info = document.getElementById('info');
+  if (isHR) {
+    info.querySelector('h2').textContent = 'Dvorište obitelji Galić';
+    info.querySelectorAll('p')[2].innerHTML = '<kbd>Klik + vuci</kbd> rotacija <kbd>Scroll</kbd> zoom';
+  } else {
+    info.querySelector('h2').textContent = 'Galić Family Garden';
+    info.querySelectorAll('p')[2].innerHTML = '<kbd>Click + drag</kbd> rotate <kbd>Scroll</kbd> zoom';
+  }
+  // Update 3D labels
+  for (const sp of lbls) {
+    const c = sp.material.map.source.data;
+    const ctx = c.getContext('2d');
+    const oldText = sp.userData.text;
+    const newText = isHR ? oldText : (translations[oldText] || oldText);
+    ctx.clearRect(0,0,1024,256);
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    ctx.beginPath();ctx.roundRect(12,12,1000,232,20);ctx.fill();
+    ctx.strokeStyle='#2d5016';ctx.lineWidth=4;
+    ctx.beginPath();ctx.roundRect(12,12,1000,232,20);ctx.stroke();
+    ctx.fillStyle='#1a3a0a';ctx.font='bold 80px system-ui';
+    ctx.textAlign='center';ctx.fillText(newText,512,155);
+    sp.material.map.needsUpdate = true;
+  }
+  const el = document.getElementById('lbl');
+  el.textContent = isHR ? 'Jezik: Hrvatski' : 'Language: English';
+  el.classList.add('s');
+  setTimeout(()=>el.classList.remove('s'), 1500);
+};
+</script>
+</body>
+</html>
