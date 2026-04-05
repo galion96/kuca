@@ -479,42 +479,59 @@ for (const [zc, shade] of [[26, 0x4aaa3a], [34, 0x3a9a2a]]) {
   lm.position.set(lp2.x, lp2.y+0.03, lp2.z); scene.add(lm);
 }
 
-// --- STONE PATHWAY (kamena staza) - VERY VISIBLE ---
+// --- KAMENA STAZA (oblutci/kamenčići kao na slici) ---
+// Earth/gravel base + individual rounded stones
+const stoneColors = [0x888888,0x999999,0x777777,0xaaaaaa,0x909090,0x858585,0x7a7a7a,0x9a9a9a];
 function stonePath(pts, w) {
-  // Light beige stone with dark borders
-  const pathCol = 0xddd0b8;
-  const borderCol = 0x998866;
   for (let i = 0; i < pts.length-1; i++) {
     const [x1,z1] = pts[i], [x2,z2] = pts[i+1];
     const len = Math.hypot(x2-x1,z2-z1);
     const ang = Math.atan2(z2-z1,x2-x1);
     const mx=(x1+x2)/2, mz=(z1+z2)/2;
     const mp = wp(mx, mz);
-    // Main path surface (raised)
-    const pg = new THREE.BoxGeometry(len+0.1, 0.12, w);
-    const pm = new THREE.Mesh(pg, new THREE.MeshLambertMaterial({color:pathCol}));
-    pm.position.set(mp.x, mp.y+0.08, mp.z);
-    pm.rotation.y = -ang;
-    pm.receiveShadow=true; pm.castShadow=true; scene.add(pm);
-    // Border stones
-    for (let side of [-1,1]) {
-      const bg = new THREE.BoxGeometry(len+0.1, 0.15, 0.12);
-      const bm = new THREE.Mesh(bg, new THREE.MeshLambertMaterial({color:borderCol}));
-      bm.position.set(mp.x + Math.sin(-ang)*side*w/2, mp.y+0.1, mp.z + Math.cos(-ang)*side*w/2);
-      bm.rotation.y = -ang;
-      scene.add(bm);
-    }
-    // Stone pattern lines across path
-    const nStones = Math.floor(len / 0.6);
+    // Earth/gravel base (brown)
+    const base = new THREE.Mesh(new THREE.BoxGeometry(len+0.2, 0.06, w+0.2),
+      new THREE.MeshLambertMaterial({color:0x6b5a45}));
+    base.position.set(mp.x, mp.y+0.04, mp.z);
+    base.rotation.y = -ang; base.receiveShadow=true; scene.add(base);
+    // Individual cobblestones along the path
+    const nStones = Math.floor(len / 0.25);
+    const perpX = -Math.sin(ang), perpZ = Math.cos(ang);
     for (let s = 0; s < nStones; s++) {
-      const t = (s+0.5)/nStones;
-      const sx = x1 + t*(x2-x1), sz = z1 + t*(z2-z1);
-      const sp = wp(sx, sz);
-      const sg = new THREE.BoxGeometry(0.04, 0.14, w*0.9);
-      const sm = new THREE.Mesh(sg, new THREE.MeshLambertMaterial({color:0xbbaa88}));
-      sm.position.set(sp.x, sp.y+0.1, sp.z);
-      sm.rotation.y = -ang;
-      scene.add(sm);
+      const t = (s+0.3+Math.random()*0.4)/nStones;
+      // 2-3 stones across width
+      const across = Math.floor(Math.random()*3) + 2;
+      for (let a = 0; a < across; a++) {
+        const offset = (a/(across-1) - 0.5) * w * 0.8 + (Math.random()-0.5)*0.1;
+        const sx = x1 + t*(x2-x1) + perpX*offset;
+        const sz = z1 + t*(z2-z1) + perpZ*offset;
+        const sp2 = wp(sx, sz);
+        const stoneSize = 0.08 + Math.random()*0.08;
+        const stone = new THREE.Mesh(
+          new THREE.SphereGeometry(stoneSize, 6, 4),
+          new THREE.MeshLambertMaterial({color:stoneColors[Math.floor(Math.random()*stoneColors.length)]})
+        );
+        stone.position.set(sp2.x, sp2.y+0.06+stoneSize*0.3, sp2.z);
+        stone.scale.y = 0.4 + Math.random()*0.2; // flatten stones
+        stone.rotation.y = Math.random()*Math.PI;
+        scene.add(stone);
+      }
+    }
+    // Edge border stones (bigger, darker)
+    for (let side of [-1,1]) {
+      const nEdge = Math.floor(len/0.4);
+      for (let e = 0; e < nEdge; e++) {
+        const t2 = (e+0.5)/nEdge;
+        const ex = x1+t2*(x2-x1)+perpX*side*w*0.5;
+        const ez = z1+t2*(z2-z1)+perpZ*side*w*0.5;
+        const ep = wp(ex,ez);
+        const edgeStone = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1+Math.random()*0.05,6,4),
+          new THREE.MeshLambertMaterial({color:0x666666}));
+        edgeStone.position.set(ep.x,ep.y+0.08,ep.z);
+        edgeStone.scale.y=0.35;
+        scene.add(edgeStone);
+      }
     }
   }
 }
